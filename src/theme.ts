@@ -4,7 +4,7 @@ export const colors = {
   text: '#16201A',
   textMuted: '#6A756E',
   border: '#E4E8E2',
-  primary: '#1F7A4D',
+  primary: '#D63B30',
   primarySoft: '#E3F2EA',
   danger: '#D63B30',
   calories: '#1F7A4D',
