@@ -112,26 +112,75 @@ export function NumberField({
   );
 }
 
+/** Press-and-hold timing: first repeat after HOLD_DELAY, then faster and faster down to HOLD_FASTEST. */
+const HOLD_DELAY = 400;
+const HOLD_START = 150;
+const HOLD_FASTEST = 40;
+
 export function Stepper({
   value,
   onChange,
   step = 0.5,
   min = 0.25,
+  max = 100,
 }: {
   value: number;
   onChange: (v: number) => void;
   step?: number;
   min?: number;
+  max?: number;
 }) {
+  // Refs keep the repeat timer working with the latest value between re-renders.
+  const valueRef = React.useRef(value);
+  const onChangeRef = React.useRef(onChange);
+  valueRef.current = value;
+  onChangeRef.current = onChange;
+  const timer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const stop = React.useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = undefined;
+  }, []);
+  React.useEffect(() => stop, [stop]);
+
+  const bump = (dir: 1 | -1) => {
+    const next = Math.min(max, Math.max(min, +(valueRef.current + dir * step).toFixed(2)));
+    if (next === valueRef.current) return false;
+    valueRef.current = next;
+    onChangeRef.current(next);
+    return true;
+  };
+
+  /** One step on touch, then keep stepping (and speeding up) while the finger stays down. */
+  const start = (dir: 1 | -1) => {
+    stop();
+    if (!bump(dir)) return;
+    let delay = HOLD_START;
+    const repeat = () => {
+      if (!bump(dir)) return stop();
+      delay = Math.max(HOLD_FASTEST, delay * 0.85);
+      timer.current = setTimeout(repeat, delay);
+    };
+    timer.current = setTimeout(repeat, HOLD_DELAY);
+  };
+
   return (
     <View style={styles.stepper}>
       <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Decrease"
         style={styles.stepBtn}
-        onPress={() => onChange(Math.max(min, +(value - step).toFixed(2)))}>
+        onPressIn={() => start(-1)}
+        onPressOut={stop}>
         <Text style={styles.stepText}>−</Text>
       </Pressable>
       <Text style={[type.h3, type.num, { minWidth: 44, textAlign: 'center' }]}>{value}</Text>
-      <Pressable style={styles.stepBtn} onPress={() => onChange(+(value + step).toFixed(2))}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Increase"
+        style={styles.stepBtn}
+        onPressIn={() => start(1)}
+        onPressOut={stop}>
         <Text style={styles.stepText}>+</Text>
       </Pressable>
     </View>
