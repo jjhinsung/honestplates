@@ -27,6 +27,8 @@ export function CameraCapture({
   busyText,
   hint,
   overlay = 'label',
+  barcodeTypes,
+  onBarcode,
 }: {
   onCapture: (path: string) => void | Promise<void>;
   busy?: boolean;
@@ -100,7 +102,7 @@ export function CameraCapture({
         style={StyleSheet.absoluteFill}
         device={device}
         isActive={isFocused && appActive}
-        outputs={[photoOutput]}
+        outputs={outputs}
         enableNativeTapToFocusGesture
         enableNativeZoomGesture
       />

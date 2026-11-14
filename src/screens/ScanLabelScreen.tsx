@@ -53,9 +53,10 @@ export function ScanLabelScreen() {
     },
     [busy, nav],
   );
-    
-  setBusyText('Reading label…');
+
+  // Path 2 (unchanged): photo of the Nutrition Facts panel → on-device OCR.
   const handleCapture = async (photoPath: string) => {
+    setBusyText('Reading label…');
     setBusy(true);
     try {
       const parsed = await scanNutritionLabel(photoPath);
