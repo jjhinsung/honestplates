@@ -52,6 +52,8 @@ export interface ParsedLabel {
   servingsPerContainer?: number;
   nutrients: Nutrients;
   ingredients?: string;
+  /** Allergen statement printed after the list, e.g. "MILK, SOY" from "CONTAINS: MILK, SOY." */
+  containsStatement?: string;
   allergens?: string[];
   rawText: string;
   /** Which fields were actually read from the label vs defaulted to 0. */
