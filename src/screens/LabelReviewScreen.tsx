@@ -352,4 +352,5 @@ const styles = StyleSheet.create({
     padding: spacing(2),
     textAlignVertical: 'top',
   },
+  barcodeThumb: { alignItems: 'center', justifyContent: 'center' },
 });
