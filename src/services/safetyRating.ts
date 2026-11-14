@@ -1,5 +1,6 @@
 import { DAILY_VALUES } from '../config';
 import type { Nutrients, SafetyFlag, SafetyGrade, SafetyRating } from '../types';
+import { splitIngredients } from './ingredientParser';
 
 /**
  * Label safety / quality rating (0–100 → A–F).
@@ -204,7 +205,7 @@ export function rateLabel(
       });
     }
     // A very long ingredient list is a rough proxy for ultra-processing.
-    const count = ingredients.split(/,(?![^()]*\))/).length;
+    const count = splitIngredients(ingredients).length;
     if (count >= 20) {
       score -= 5;
       flags.push({ severity: 'info', message: `Long ingredient list (${count} items)` });
