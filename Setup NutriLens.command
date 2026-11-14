@@ -36,12 +36,23 @@ echo "✓ Xcode will use Node at $(command -v node)"
 
 echo ""
 echo "→ Installing iOS libraries (CocoaPods)…"
+if ! command -v pod >/dev/null 2>&1; then
+  if command -v brew >/dev/null 2>&1; then
+    # Homebrew's CocoaPods ships with its own modern Ruby (macOS's built-in Ruby 2.6 is too old).
+    echo "→ CocoaPods not found — installing it with Homebrew…"
+    brew install cocoapods || fail "Homebrew couldn't install CocoaPods (see messages above)."
+  else
+    RUBY_MAJOR=$(ruby -e 'print RUBY_VERSION.split(".")[0]' 2>/dev/null || echo 0)
+    if [ "$RUBY_MAJOR" -lt 3 ]; then
+      open "https://brew.sh"
+      fail "CocoaPods needs Homebrew (or Ruby 3+). Install Homebrew from the page that just opened, then double-click this file again."
+    fi
+    BUNDLE_PATH=vendor/bundle bundle install || fail "Couldn't install CocoaPods (see messages above)."
+    (cd ios && BUNDLE_PATH=../vendor/bundle bundle exec pod install) || fail "pod install failed (see messages above)."
+  fi
+fi
 if command -v pod >/dev/null 2>&1; then
   (cd ios && pod install) || fail "pod install failed (see messages above)."
-else
-  # No global CocoaPods: install it inside the project (no admin password needed).
-  BUNDLE_PATH=vendor/bundle bundle install || fail "Couldn't install CocoaPods. Make sure Xcode has finished installing its components (open Xcode once), then try again."
-  (cd ios && BUNDLE_PATH=../vendor/bundle bundle exec pod install) || fail "pod install failed (see messages above)."
 fi
 
 echo ""
