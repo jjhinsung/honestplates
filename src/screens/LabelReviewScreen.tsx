@@ -33,7 +33,7 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
   const { parsed, photoPath } = route.params;
   const addEntry = useNutritionStore(s => s.addEntry);
 
-  const [name, setName] = useState('');
+    const [name, setName] = useState(parsed.productName ?? '');
   // Every scanned value stays editable. Fields hold exactly what the user typed
   // (undefined = cleared), so clearing a recognized number doesn't snap back to 0.
   const [values, setValues] = useState<NutrientValues>(() => ({ ...parsed.nutrients }));
@@ -98,7 +98,13 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }} keyboardVerticalOffset={90}>
       <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ padding: spacing(4) }}>
         <View style={styles.header}>
-          <Image source={{ uri: toFileUri(photoPath) }} style={styles.thumb} />
+          {photoPath ? (
+            <Image source={{ uri: toFileUri(photoPath) }} style={styles.thumb} />
+          ) : (
+            <View style={[styles.thumb, styles.barcodeThumb]}>
+              <Text style={{ fontSize: 34 }}>🏷️</Text>
+            </View>
+          )}
           <View style={{ flex: 1, gap: spacing(1) }}>
             <TextInput
               value={name}
@@ -108,6 +114,9 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
               style={styles.nameInput}
             />
             <View style={styles.servingRow}>
+              {parsed.source === 'barcode' && (
+                <Text style={type.small}>Barcode {parsed.barcode} · data from Open Food Facts</Text>
+              )}
               <Text style={type.small}>Serving size</Text>
               <TextInput
                 value={servingSize}
@@ -221,7 +230,13 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
 
         <Button title={`Add ${Math.round(total.calories)} kcal to today`} onPress={save} />
 
-        <ScanDiagnostics parsed={parsed} />
+        {parsed.source !== 'barcode' && <ScanDiagnostics parsed={parsed} />}
+        {parsed.source === 'barcode' && (
+          <Text style={[type.small, { textAlign: 'center', marginTop: spacing(4), fontSize: 11 }]}>
+            Nutrition data from Open Food Facts (openfoodfacts.org), available under the ODbL licence.
+            Community-maintained — check it against the package.
+          </Text>
+        )}
         <View style={{ height: spacing(10) }} />
       </ScrollView>
     </KeyboardAvoidingView>
@@ -337,4 +352,5 @@ const styles = StyleSheet.create({
     padding: spacing(2),
     textAlignVertical: 'top',
   },
+  barcodeThumb: { alignItems: 'center', justifyContent: 'center' },
 });
