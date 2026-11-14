@@ -11,7 +11,7 @@ export type TabParamList = {
 
 export type RootStackParamList = {
   Tabs: NavigatorScreenParams<TabParamList>;
-  LabelReview: { parsed: ParsedLabel; photoPath: string };
+  LabelReview: { parsed: ParsedLabel; photoPath?: string };
   PlateReview: { analysis: PlateAnalysis; photoPath: string };
   ManualEntry: undefined;
 };
