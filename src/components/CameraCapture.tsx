@@ -1,15 +1,21 @@
 import { useIsFocused } from '@react-navigation/native';
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, AppState, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Camera,
+  isScannedCode,
   useCameraDevice,
   useCameraPermission,
+  useObjectOutput,
   usePhotoOutput,
+  type ScannedObject,
+  type ScannedObjectType,
 } from 'react-native-vision-camera';
 import { colors, spacing, type } from '../theme';
 import { Button } from './ui';
+
+const NO_CODES: ScannedObjectType[] = [];
 
 /**
  * Full-screen camera with a shutter button. Calls `onCapture(filePath)`.
@@ -27,6 +33,8 @@ export function CameraCapture({
   busyText?: string;
   hint: string;
   overlay?: 'label' | 'plate';
+  barcodeTypes?: ScannedObjectType[];
+  onBarcode?: (value: string) => void;
 }) {
   const isFocused = useIsFocused();
   const [appActive, setAppActive] = useState(AppState.currentState === 'active');
@@ -38,6 +46,16 @@ export function CameraCapture({
   const { hasPermission, canRequestPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
   const photoOutput = usePhotoOutput({ qualityPrioritization: 'balanced' });
+  // Barcode detection runs alongside photo capture, so both features share one camera.
+  const handleObjects = useCallback(
+    (objects: ScannedObject[]) => {
+      const code = objects.find(isScannedCode)?.value;
+      if (code && onBarcode) onBarcode(code);
+    },
+    [onBarcode],
+  );
+  const objectOutput = useObjectOutput({ types: barcodeTypes ?? NO_CODES, onObjectsScanned: handleObjects });
+  const outputs = barcodeTypes?.length ? [photoOutput, objectOutput] : [photoOutput];
   const insets = useSafeAreaInsets();
   const [capturing, setCapturing] = useState(false);
 
