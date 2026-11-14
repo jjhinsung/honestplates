@@ -29,5 +29,6 @@ export const type = {
   h2: { fontSize: 20, fontWeight: '700' as const, color: colors.text },
   h3: { fontSize: 16, fontWeight: '600' as const, color: colors.text },
   body: { fontSize: 15, color: colors.text },
-  small: { fontSize: 13, color: colors.textMuted }
+  small: { fontSize: 13, color: colors.textMuted },
+  num: { fontVariant: ['tabular-nums' as const] },
 };
