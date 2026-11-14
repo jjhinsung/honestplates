@@ -1,4 +1,7 @@
 import type { Nutrients, ParsedLabel } from '../types';
+import { fixDigitTokens, resolveCalories, servingGramsFrom, type OcrLine } from './caloriesExtractor';
+
+export type { OcrLine } from './caloriesExtractor';
 
 /**
  * Turns raw OCR text from a US-style "Nutrition Facts" panel into structured,
@@ -21,14 +24,15 @@ const MAJOR_ALLERGENS: [string, RegExp][] = [
 ];
 
 function normalize(raw: string): string {
-  return raw
+  return fixDigitTokens(raw)
     .replace(/\r/g, '')
     .replace(/[|]/g, ' ')
     .replace(/\bO(?=\s?(m?g|mcg)\b)/g, '0') // "Og" → "0g"
     .replace(/(\d)\s?[oO](?=\s?(m?g)\b)/g, '$10') // "1Og" → "10g"
     .replace(/(\d)[oO](?=\d)/g, '$10') // "1O5mg" → "105mg"
     .replace(/\bl(?=\d)/g, '1') // "l2g" → "12g"
-    .replace(/(\d),(\d)/g, '$1.$2') // EU decimal comma
+    .replace(/(\d),(\d{3})(?!\d)/g, '$1$2') // thousands separator: "1,250" → "1250"
+    .replace(/(\d),(\d{1,2})(?!\d)/g, '$1.$2') // EU decimal comma: "2,5g" → "2.5g"
     .replace(/[ \t]+/g, ' ');
 }
 
@@ -66,7 +70,35 @@ function findAmount(
   return undefined;
 }
 
-export function parseNutritionLabel(rawText: string): ParsedLabel {
+/**
+ * @param rawText  OCR text in reading order.
+ * @param layout   Optional OCR lines/words with bounding boxes (from ML Kit). Strongly
+ *                 improves calorie detection, whose large digits are often out of order.
+ */
+// Label patterns tolerant of common OCR misreads ("Tota! Fat", "T0tal Carb.", "Prote1n").
+const TOTAL = String.raw`t[o0]t[a@][l1i!|]?\s*`;
+const RE_TOTAL_FAT = new RegExp(String.raw`\b${TOTAL}f[a@]t\b`, 'i');
+const RE_TOTAL_CARBS = new RegExp(String.raw`\b${TOTAL}c[a@]rb(?:[o0]hydr[a@]te)?s?\.?`, 'i');
+const RE_CARBS = /\bc[a@]rb[o0]hydr[a@]tes?\b/i;
+const RE_PROTEIN = /\bpr[o0][tf]e[i1l!]n\b/i;
+
+/**
+ * Plain "Fat" (EU-style labels, or "Total" lost to OCR) — but not Saturated/Trans/
+ * Poly-/Monounsaturated fat or "Calories from Fat".
+ */
+function findPlainFat(text: string): number | undefined {
+  const re = /\bf[a@]t\b/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    const before = text.slice(Math.max(0, m.index - 18), m.index);
+    if (/(sat(urated)?\.?|trans|poly\w*|mono\w*|from|unsat\w*)\s*$/i.test(before)) continue;
+    const v = findAmount(text.slice(m.index), /^f[a@]t\b/i, 'g');
+    if (v !== undefined) return v;
+  }
+  return undefined;
+}
+
+export function parseNutritionLabel(rawText: string, layout?: OcrLine[]): ParsedLabel {
   const text = normalize(rawText);
   const flat = text.replace(/\n/g, ' ');
 
@@ -79,23 +111,12 @@ export function parseNutritionLabel(rawText: string): ParsedLabel {
     return undefined;
   };
 
-  // Calories: skip "Calories from Fat"; the big number may be on the next line.
-  const calories = pick(
-    'calories',
-    findAmount(flat, /\bcalories\b(?!\s*from)/i, 'none', 30) ??
-      findAmount(flat, /\benergy\b/i, 'none', 30),
-  );
-
   const nutrients: Nutrients = {
-    calories: calories ?? 0,
-    fat: pick('fat', findAmount(flat, /\btotal\s*fat\b/i, 'g')) ?? 0,
+    calories: 0, // resolved below, once the macros are known
+    fat: pick('fat', findAmount(flat, RE_TOTAL_FAT, 'g') ?? findPlainFat(flat)) ?? 0,
     carbs:
-      pick(
-        'carbs',
-        findAmount(flat, /\btotal\s*carb(ohydrate)?s?\.?\b/i, 'g') ??
-          findAmount(flat, /\bcarbohydrates?\b/i, 'g'),
-      ) ?? 0,
-    protein: pick('protein', findAmount(flat, /\bprotein\b/i, 'g')) ?? 0,
+      pick('carbs', findAmount(flat, RE_TOTAL_CARBS, 'g') ?? findAmount(flat, RE_CARBS, 'g')) ?? 0,
+    protein: pick('protein', findAmount(flat, RE_PROTEIN, 'g')) ?? 0,
     saturatedFat: pick('saturatedFat', findAmount(flat, /\bsat(urated)?\.?\s*fat\b/i, 'g')),
     transFat: pick('transFat', findAmount(flat, /\btrans\s*fat\b/i, 'g')),
     cholesterol: pick('cholesterol', findAmount(flat, /\bcholesterol\b/i, 'mg')),
@@ -113,8 +134,26 @@ export function parseNutritionLabel(rawText: string): ParsedLabel {
     nutrients.addedSugar = pick('addedSugar', findAmount(flat, /\badded\s*sugars?\b/i, 'g'));
   }
 
-  // Serving info
   const servingSize = /serving\s*size\s*:?\s*([^\n]{1,40})/i.exec(text)?.[1]?.trim();
+
+  // Calories: layout-aware extraction, cross-checked against the macros and
+  // bounded by the serving weight (≤ 9 kcal per gram).
+  const cal = resolveCalories({
+    text,
+    layout,
+    servingGrams: servingGramsFrom(servingSize),
+    macros: {
+      protein: detected.includes('protein') ? nutrients.protein : undefined,
+      carbs: detected.includes('carbs') ? nutrients.carbs : undefined,
+      fat: detected.includes('fat') ? nutrients.fat : undefined,
+    },
+  });
+  if (cal.value !== undefined) {
+    nutrients.calories = cal.value;
+    if (cal.status !== 'estimated') detected.push('calories');
+  }
+
+  // Serving info
   const spc =
     /(\d+(?:\.\d+)?)\s*servings?\s*per\s*(container|package)/i.exec(flat)?.[1] ??
     /servings?\s*per\s*(container|package)\s*:?\s*(about\s*)?(\d+(?:\.\d+)?)/i.exec(flat)?.[3];
@@ -139,6 +178,15 @@ export function parseNutritionLabel(rawText: string): ParsedLabel {
     allergens,
     rawText,
     detectedFields: Array.from(new Set(detected)),
+    caloriesCheck: {
+      status: cal.status ?? 'unverified',
+      macroEstimate: cal.macroEstimate,
+      candidates: cal.candidates ?? [],
+      rejected: cal.rejected ?? [],
+      maxPlausible: cal.maxPlausible,
+      servingGrams: cal.servingGrams,
+      found: cal.value !== undefined,
+    },
   };
 }
 

@@ -56,6 +56,20 @@ export interface ParsedLabel {
   rawText: string;
   /** Which fields were actually read from the label vs defaulted to 0. */
   detectedFields: (keyof Nutrients)[];
+  /**
+   * How the calorie value was obtained and whether it agrees with the macros
+   * (4·protein + 4·carbs + 9·fat). 'estimated' means it wasn't readable on the label.
+   */
+  caloriesCheck?: {
+    status: 'ok' | 'unverified' | 'mismatch' | 'estimated';
+    macroEstimate?: number;
+    /** Diagnostics shown in the "Scanned text" panel. */
+    candidates: number[]; // every calorie value the scanner considered
+    rejected: number[]; // values ruled out as impossible for the serving size
+    maxPlausible?: number; // ~9 kcal × serving grams
+    servingGrams?: number;
+    found: boolean; // false → no calorie value at all
+  };
 }
 
 /** One food the AI identified on a plate photo. */
