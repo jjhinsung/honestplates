@@ -48,6 +48,9 @@ export interface FoodEntry {
 
 /** Result of parsing a printed Nutrition Facts panel (values are PER SERVING). */
 export interface ParsedLabel {
+  source?: 'ocr' | 'barcode';
+  barcode?: string;
+  productName?: string;
   servingSize?: string;
   servingsPerContainer?: number;
   nutrients: Nutrients;
