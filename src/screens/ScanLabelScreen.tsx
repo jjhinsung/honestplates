@@ -37,7 +37,7 @@ export function ScanLabelScreen() {
   return (
     <CameraCapture
       overlay="label"
-      hint="Fit the Nutrition Facts panel (and ingredients) in the frame"
+      hint="Fit the Nutrition Facts panel (and ingredients) in the frame."
       busy={busy}
       busyText="Reading label…"
       onCapture={handleCapture}
