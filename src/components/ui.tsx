@@ -74,12 +74,16 @@ export function NumberField({
   unit,
   onChange,
   highlight,
+  edited,
 }: {
   label: string;
   value: number | undefined;
   unit?: string;
   onChange: (v: number | undefined) => void;
+  /** Value wasn't found by the scanner. */
   highlight?: boolean;
+  /** Value was changed by the user. */
+  edited?: boolean;
 }) {
   const [text, setText] = React.useState(value === undefined ? '' : String(value));
   React.useEffect(() => {
@@ -101,7 +105,7 @@ export function NumberField({
         }}
         keyboardType="decimal-pad"
         placeholder="—"
-        style={[styles.input, highlight && styles.inputHighlight]}
+        style={[styles.input, highlight && styles.inputHighlight, edited && styles.inputEdited]}
       />
       <Text style={[type.small, { width: 28 }]}>{unit ?? ''}</Text>
     </View>
@@ -194,6 +198,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FAFBF9',
   },
   inputHighlight: { borderColor: colors.carbs, backgroundColor: '#FFF8EA' },
+  inputEdited: { borderColor: colors.calories, backgroundColor: colors.primarySoft },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: spacing(2) },
   stepBtn: {
     width: 36,

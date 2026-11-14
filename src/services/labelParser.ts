@@ -1,5 +1,6 @@
 import type { Nutrients, ParsedLabel } from '../types';
 import { fixDigitTokens, resolveCalories, servingGramsFrom, type OcrLine } from './caloriesExtractor';
+import { detectAllergens, extractIngredients } from './ingredientParser';
 
 export type { OcrLine } from './caloriesExtractor';
 
@@ -10,18 +11,6 @@ export type { OcrLine } from './caloriesExtractor';
  *  - ignores numbers immediately followed by "%" (those are %DV, not amounts),
  *  - reports which fields it actually found so the UI can ask the user to confirm.
  */
-
-const MAJOR_ALLERGENS: [string, RegExp][] = [
-  ['Milk', /\b(milk|whey|casein|butter|cream|cheese|lactose)\b/i],
-  ['Eggs', /\beggs?\b|\balbumin\b/i],
-  ['Fish', /\b(fish|anchov|cod|salmon|tuna|tilapia)\w*/i],
-  ['Shellfish', /\b(shrimp|crab|lobster|shellfish|prawn)\w*/i],
-  ['Tree nuts', /\b(almond|cashew|walnut|pecan|pistachio|hazelnut|macadamia)\w*/i],
-  ['Peanuts', /\bpeanuts?\b/i],
-  ['Wheat', /\bwheat\b/i],
-  ['Soy', /\bsoy(bean|a)?\b/i],
-  ['Sesame', /\bsesame\b/i],
-];
 
 function normalize(raw: string): string {
   return fixDigitTokens(raw)
@@ -158,23 +147,17 @@ export function parseNutritionLabel(rawText: string, layout?: OcrLine[]): Parsed
     /(\d+(?:\.\d+)?)\s*servings?\s*per\s*(container|package)/i.exec(flat)?.[1] ??
     /servings?\s*per\s*(container|package)\s*:?\s*(about\s*)?(\d+(?:\.\d+)?)/i.exec(flat)?.[3];
 
-  // Ingredients (often printed below or beside the panel)
-  const ingMatch =
-    /ingredients?\s*[:.]?\s*([\s\S]+?)(?=\bcontains\b\s*:?|\ballergen|\bdistributed\b|\bmanufactured\b|\bmade in\b|\bkeep\b|$)/i.exec(
-      text,
-    );
-  const ingredients = ingMatch?.[1]?.replace(/\s+/g, ' ').trim();
-
-  const allergenText = `${ingredients ?? ''} ${/contains\s*:?\s*([^\n.]+)/i.exec(text)?.[1] ?? ''}`;
-  const allergens = MAJOR_ALLERGENS.filter(([, re]) => re.test(allergenText)).map(
-    ([name]) => name,
-  );
+  // Ingredients (often printed below or beside the panel). Parsed from the raw
+  // text: the numeric fixes in normalize() would corrupt words like "B12, 2".
+  const { ingredients, containsStatement } = extractIngredients(rawText);
+  const allergens = detectAllergens(ingredients, containsStatement);
 
   return {
     servingSize: servingSize?.replace(/\s+/g, ' '),
     servingsPerContainer: spc ? parseFloat(spc) : undefined,
     nutrients,
-    ingredients: ingredients && ingredients.length > 3 ? ingredients : undefined,
+    ingredients,
+    containsStatement,
     allergens,
     rawText,
     detectedFields: Array.from(new Set(detected)),

@@ -6,11 +6,14 @@ import { SafetyCard } from '../components/SafetyCard';
 import { Button, Card, NumberField, SectionTitle, Stepper } from '../components/ui';
 import type { RootScreenProps } from '../navigation/types';
 import { toFileUri } from '../services/imageUtils';
+import { detectAllergens, splitIngredients } from '../services/ingredientParser';
 import { rateLabel } from '../services/safetyRating';
 import { useNutritionStore } from '../store/useNutritionStore';
 import { colors, radius, spacing, type } from '../theme';
 import type { Nutrients, ParsedLabel } from '../types';
 import { caloriesFromMacros, guessMeal, scaleNutrients, toDateKey } from '../utils/nutrition';
+
+type NutrientValues = { [K in keyof Nutrients]?: number };
 
 const FIELDS: { key: keyof Nutrients; label: string; unit: string }[] = [
   { key: 'calories', label: 'Calories', unit: 'kcal' },
@@ -31,20 +34,41 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
   const addEntry = useNutritionStore(s => s.addEntry);
 
   const [name, setName] = useState('');
-  const [perServing, setPerServing] = useState<Nutrients>(parsed.nutrients);
+  // Every scanned value stays editable. Fields hold exactly what the user typed
+  // (undefined = cleared), so clearing a recognized number doesn't snap back to 0.
+  const [values, setValues] = useState<NutrientValues>(() => ({ ...parsed.nutrients }));
+  const [servingSize, setServingSize] = useState(parsed.servingSize ?? '');
+  const [servingsPerContainer, setServingsPerContainer] = useState(parsed.servingsPerContainer);
   const [servings, setServings] = useState(1);
   const [meal, setMeal] = useState(guessMeal());
   const [ingredients, setIngredients] = useState(parsed.ingredients ?? '');
 
-  // Rating is recomputed live as the user corrects OCR values.
+  const perServing = useMemo<Nutrients>(
+    () => ({
+      ...values,
+      calories: values.calories ?? 0,
+      protein: values.protein ?? 0,
+      carbs: values.carbs ?? 0,
+      fat: values.fat ?? 0,
+    }),
+    [values],
+  );
+  const editedFields = FIELDS.filter(f => values[f.key] !== parsed.nutrients[f.key]).map(f => f.key);
+  const caloriesEdited = editedFields.includes('calories');
+
+  // Allergens and rating are recomputed live as the user corrects the scan.
+  const allergens = useMemo(
+    () => detectAllergens(ingredients, parsed.containsStatement),
+    [ingredients, parsed.containsStatement],
+  );
+  const ingredientCount = useMemo(() => splitIngredients(ingredients).length, [ingredients]);
   const rating = useMemo(
-    () => rateLabel(perServing, ingredients, parsed.allergens),
-    [perServing, ingredients, parsed.allergens],
+    () => rateLabel(perServing, ingredients, allergens),
+    [perServing, ingredients, allergens],
   );
   const total = useMemo(() => scaleNutrients(perServing, servings), [perServing, servings]);
 
   // Calorie sanity check: compare against 4·protein + 4·carbs + 9·fat (updates as the user edits).
-  const [caloriesEdited, setCaloriesEdited] = useState(false);
   const macroEstimate = Math.round(caloriesFromMacros(perServing));
   const caloriesOff =
     macroEstimate > 0 && Math.abs(perServing.calories - macroEstimate) > Math.max(30, macroEstimate * 0.25);
@@ -62,7 +86,7 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
       meal,
       source: 'label',
       servings,
-      servingDescription: parsed.servingSize,
+      servingDescription: servingSize.trim() || undefined,
       nutrients: total,
       safety: rating,
     });
@@ -83,10 +107,30 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
               placeholderTextColor={colors.textMuted}
               style={styles.nameInput}
             />
-            {parsed.servingSize && <Text style={type.small}>Serving size: {parsed.servingSize}</Text>}
-            {parsed.servingsPerContainer && (
-              <Text style={type.small}>{parsed.servingsPerContainer} servings per container</Text>
-            )}
+            <View style={styles.servingRow}>
+              <Text style={type.small}>Serving size</Text>
+              <TextInput
+                value={servingSize}
+                onChangeText={setServingSize}
+                placeholder="e.g. 2/3 cup (55g)"
+                placeholderTextColor={colors.textMuted}
+                style={styles.servingInput}
+              />
+            </View>
+            <View style={styles.servingRow}>
+              <Text style={type.small}>Servings per container</Text>
+              <TextInput
+                value={servingsPerContainer === undefined ? '' : String(servingsPerContainer)}
+                onChangeText={t => {
+                  const n = parseFloat(t.replace(/[^0-9.]/g, ''));
+                  setServingsPerContainer(Number.isNaN(n) ? undefined : n);
+                }}
+                keyboardType="decimal-pad"
+                placeholder="—"
+                placeholderTextColor={colors.textMuted}
+                style={[styles.servingInput, { flex: 0, width: 56, textAlign: 'right' }]}
+              />
+            </View>
           </View>
         </View>
 
@@ -98,10 +142,7 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
               <Button
                 title={`Use ${macroEstimate} kcal`}
                 variant="secondary"
-                onPress={() => {
-                  setCaloriesEdited(true);
-                  setPerServing(p => ({ ...p, calories: macroEstimate }));
-                }}
+                onPress={() => setValues(v => ({ ...v, calories: macroEstimate }))}
               />
             )}
           </Card>
@@ -116,30 +157,44 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
         </Card>
 
         <Card>
-          <SectionTitle>Per serving (check the scan)</SectionTitle>
+          <SectionTitle
+            right={
+              editedFields.length > 0 ? (
+                <Pressable onPress={() => setValues({ ...parsed.nutrients })} hitSlop={8}>
+                  <Text style={styles.link}>Reset to scan</Text>
+                </Pressable>
+              ) : undefined
+            }>
+            Per serving
+          </SectionTitle>
           <Text style={[type.small, { marginBottom: spacing(2) }]}>
-            Highlighted fields weren't found on the label — fill them in if they're printed.
+            Tap any number to change it, including ones the scanner read. Yellow fields weren't found on the
+            label; green fields are ones you changed.
           </Text>
           {FIELDS.map(f => (
             <NumberField
               key={f.key}
               label={f.label}
               unit={f.unit}
-              value={perServing[f.key]}
-              highlight={!parsed.detectedFields.includes(f.key)}
-              onChange={v => {
-                if (f.key === 'calories') setCaloriesEdited(true);
-                setPerServing(p => ({
-                  ...p,
-                  [f.key]: v === undefined && ['calories', 'protein', 'carbs', 'fat'].includes(f.key) ? 0 : v,
-                }));
-              }}
+              value={values[f.key]}
+              highlight={!parsed.detectedFields.includes(f.key) && !editedFields.includes(f.key)}
+              edited={editedFields.includes(f.key)}
+              onChange={v => setValues(p => ({ ...p, [f.key]: v }))}
             />
           ))}
         </Card>
 
         <Card>
-          <SectionTitle>Ingredients</SectionTitle>
+          <SectionTitle
+            right={
+              parsed.ingredients && ingredients !== parsed.ingredients ? (
+                <Pressable onPress={() => setIngredients(parsed.ingredients ?? '')} hitSlop={8}>
+                  <Text style={styles.link}>Reset to scan</Text>
+                </Pressable>
+              ) : undefined
+            }>
+            Ingredients
+          </SectionTitle>
           <TextInput
             value={ingredients}
             onChangeText={setIngredients}
@@ -148,6 +203,15 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
             placeholderTextColor={colors.textMuted}
             style={styles.ingredients}
           />
+          {ingredientCount > 0 && (
+            <Text style={[type.small, { marginTop: spacing(2) }]}>
+              {ingredientCount} {ingredientCount === 1 ? 'ingredient' : 'ingredients'}
+              {allergens.length ? ` · Allergens: ${allergens.join(', ')}` : ''}
+            </Text>
+          )}
+          {!!parsed.containsStatement && (
+            <Text style={[type.small, { marginTop: spacing(1) }]}>Label says contains: {parsed.containsStatement}</Text>
+          )}
         </Card>
 
         <Card>
@@ -231,6 +295,16 @@ function DiagRow({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
+  link: { ...type.small, color: colors.primary, fontWeight: '600' },
+  servingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing(2) },
+  servingInput: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.text,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingVertical: spacing(0.5),
+  },
   diagToggle: { color: colors.primary, fontWeight: '600', textAlign: 'center' },
   diagRow: { flexDirection: 'row', gap: spacing(3), paddingVertical: spacing(1) },
   diagValue: { flex: 1.4, color: colors.text, textAlign: 'right' },
