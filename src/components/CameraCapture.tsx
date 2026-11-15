@@ -13,6 +13,7 @@ import {
   type ScannedObjectType,
 } from 'react-native-vision-camera';
 import { colors, spacing, type } from '../theme';
+import { tapHaptic } from '../services/haptics';
 import { Button } from './ui';
 
 const NO_CODES: ScannedObjectType[] = [];
@@ -87,6 +88,7 @@ export function CameraCapture({
 
   const shoot = async () => {
     if (capturing || busy) return;
+    tapHaptic(); // feel the shutter right away, before the photo finishes saving
     setCapturing(true);
     try {
       const file = await photoOutput.capturePhotoToFile({ flashMode: 'off' }, {});
