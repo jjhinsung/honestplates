@@ -46,7 +46,7 @@ export function Button({
   style?: StyleProp<ViewStyle>;
 }) {
   const bg =
-    variant === 'primary' ? colors.primary : variant === 'danger' ? colors.danger : colors.primarySoft;
+    variant === 'primary' ? colors.primary : variant === 'danger' ? colors.danger : colors.primaryTint;
   const fg = variant === 'secondary' ? colors.primary : '#fff';
   return (
     <Pressable

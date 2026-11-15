@@ -38,6 +38,7 @@ const FIELDS: { key: keyof Nutrients; label: string; unit: string }[] = [
 export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelReview'>) {
   const { parsed, photoPath } = route.params;
   const addEntry = useNutritionStore(s => s.addEntry);
+  const showMeals = useNutritionStore(s => s.showMeals);
 
     const [name, setName] = useState(parsed.productName ?? '');
   // Every scanned value stays editable. Fields hold exactly what the user typed
@@ -223,48 +224,12 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
           </Card>
         )}
 
-        <SafetyCard rating={rating} />
-          <RecallCard matches={recallMatches} />
           <PersonalVerdictCard
             verdict={verdict}
             onSetUp={() => navigation.navigate('Tabs', { screen: 'Settings' })}
           />
           <HouseholdVerdicts rows={householdRows} />
-
-        <Card>
-          <SectionTitle right={<Stepper value={servings} onChange={setServings} />}>Servings eaten</SectionTitle>
-          <Text style={[type.h2, type.num]}>{Math.round(total.calories)} kcal</Text>
-          <MacroLine n={total} />
-        </Card>
-
-        <Card>
-          <SectionTitle
-            right={
-              editedFields.length > 0 ? (
-                <Pressable onPress={() => setValues({ ...parsed.nutrients })} hitSlop={8}>
-                  <Text style={styles.link}>Reset to scan</Text>
-                </Pressable>
-              ) : undefined
-            }>
-            Per serving
-          </SectionTitle>
-          <Text style={[type.small, { marginBottom: spacing(2) }]}>
-            Tap any number to change it, including ones the scanner read. Yellow fields weren't found on the
-            label; green fields are ones you changed.
-          </Text>
-          {FIELDS.map(f => (
-            <NumberField
-              key={f.key}
-              label={f.label}
-              unit={f.unit}
-              value={values[f.key]}
-              highlight={!parsed.detectedFields.includes(f.key) && !editedFields.includes(f.key)}
-              edited={editedFields.includes(f.key)}
-              onChange={v => setValues(p => ({ ...p, [f.key]: v }))}
-            />
-          ))}
-        </Card>
-
+        <SafetyCard rating={rating} />
         <Card>
           <SectionTitle
             right={
@@ -297,21 +262,23 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
               style={styles.ingredients}
             />
           ) : (
-            <Pressable
-              onPress={openIngredientReport}
-              accessibilityRole="button"
-              accessibilityLabel={`Ingredients. Opens a breakdown of ${ingredientCount} ingredients.`}
-              style={({ pressed }) => [styles.ingredientPreview, pressed && styles.previewPressed]}>
-              <Text style={styles.previewText} numberOfLines={4}>
-                {ingredients}
-              </Text>
-              <View style={styles.previewFooter}>
-                <Text style={styles.link}>
+            <View style={{ gap: spacing(2) }}>
+              <Pressable
+                onPress={openIngredientReport}
+                accessibilityRole="button"
+                accessibilityLabel={`See what's in it. Opens a breakdown of ${ingredientCount} ingredients.`}
+                style={({ pressed }) => [styles.seeButton, pressed && styles.previewPressed]}>
+                <Text style={styles.seeButtonText}>
                   🔍 See what's in it{ingredientCount > 0 ? ` (${ingredientCount})` : ''}
                 </Text>
-                <Text style={[styles.link, { fontSize: 18 }]}>›</Text>
+                <Text style={styles.seeButtonArrow}>›</Text>
+              </Pressable>
+              <View style={styles.ingredientPreview}>
+                <Text style={styles.previewText} numberOfLines={4}>
+                  {ingredients}
+                </Text>
               </View>
-            </Pressable>
+            </View>
           )}
           {ingredientCount > 0 && (
             <Text style={[type.small, { marginTop: spacing(2) }]}>
@@ -324,12 +291,47 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
           )}
         </Card>
 
+          <RecallCard matches={recallMatches} />
+
         <Card>
-          <SectionTitle>Meal</SectionTitle>
-          <MealPicker value={meal} onChange={setMeal} />
+          <SectionTitle>{showMeals ? 'Meal' : 'Servings'}</SectionTitle>
+          {showMeals && <MealPicker value={meal} onChange={setMeal} />}
+          <View style={[styles.servingsEaten, showMeals && { marginTop: spacing(3) }]}>
+            <Text style={type.small}>Servings eaten</Text>
+            <Stepper value={servings} onChange={setServings} />
+            <Text style={[type.h3, type.num, { marginLeft: 'auto' }]}>{Math.round(total.calories)} kcal</Text>
+          </View>
         </Card>
 
         <Button title={`Add ${Math.round(total.calories)} kcal to today`} onPress={save} />
+
+        <Card>
+          <SectionTitle
+            right={
+              editedFields.length > 0 ? (
+                <Pressable onPress={() => setValues({ ...parsed.nutrients })} hitSlop={8}>
+                  <Text style={styles.link}>Reset to scan</Text>
+                </Pressable>
+              ) : undefined
+            }>
+            Per serving
+          </SectionTitle>
+          <Text style={[type.small, { marginBottom: spacing(2) }]}>
+            Tap any number to change it, including ones the scanner read. Yellow fields weren't found on the
+            label; green fields are ones you changed.
+          </Text>
+          {FIELDS.map(f => (
+            <NumberField
+              key={f.key}
+              label={f.label}
+              unit={f.unit}
+              value={values[f.key]}
+              highlight={!parsed.detectedFields.includes(f.key) && !editedFields.includes(f.key)}
+              edited={editedFields.includes(f.key)}
+              onChange={v => setValues(p => ({ ...p, [f.key]: v }))}
+            />
+          ))}
+        </Card>
 
         {parsed.source !== 'barcode' && <ScanDiagnostics parsed={parsed} />}
         {parsed.source === 'barcode' && (
@@ -412,6 +414,7 @@ function DiagRow({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   link: { ...type.small, color: colors.primary, fontWeight: '600' },
+  servingsEaten: { flexDirection: 'row', alignItems: 'center', gap: spacing(3) },
   servingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing(2) },
   servingInput: {
     flex: 1,
@@ -463,6 +466,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#FAFBF9',
   },
   previewPressed: { opacity: 0.7 },
+  seeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryTint,
+    borderRadius: radius.md,
+    paddingVertical: spacing(3),
+    paddingHorizontal: spacing(4),
+  },
+  seeButtonText: { fontSize: 15, fontWeight: '700', color: colors.primary },
+  seeButtonArrow: { fontSize: 22, fontWeight: '700', color: colors.primary },
   previewText: { fontSize: 14, color: colors.text, lineHeight: 20 },
     previewFooter: {
       flexDirection: 'row',

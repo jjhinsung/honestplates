@@ -23,6 +23,7 @@ interface EditableItem extends PlateItem {
 export function PlateReviewScreen({ route, navigation }: RootScreenProps<'PlateReview'>) {
   const { analysis, photoPath } = route.params;
   const addEntries = useNutritionStore(s => s.addEntries);
+  const showMeals = useNutritionStore(s => s.showMeals);
   const [meal, setMeal] = useState(guessMeal());
   const [items, setItems] = useState<EditableItem[]>(
     analysis.items.map(i => ({ ...i, included: true, multiplier: 1, expanded: false })),
@@ -156,10 +157,12 @@ export function PlateReviewScreen({ route, navigation }: RootScreenProps<'PlateR
         );
       })}
 
-      <Card>
-        <SectionTitle>Meal</SectionTitle>
-        <MealPicker value={meal} onChange={setMeal} />
-      </Card>
+      {showMeals && (
+        <Card>
+          <SectionTitle>Meal</SectionTitle>
+          <MealPicker value={meal} onChange={setMeal} />
+        </Card>
+      )}
 
       <Text style={[type.small, { textAlign: 'center', marginBottom: spacing(3) }]}>
         AI portion estimates can be off by 20–30%. Adjust portions for better accuracy.
