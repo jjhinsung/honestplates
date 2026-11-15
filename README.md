@@ -37,6 +37,25 @@ ANTHROPIC_API_KEY=sk-ant-... node index.mjs        # listens on :8787
 - Optional env vars: `MODEL` (default `claude-sonnet-5-5`), `PORT`, `APP_TOKEN` (requires a `Bearer` header; add it to the fetch in `plateRecognition.ts` if you enable it).
 - For production, deploy `server/index.mjs` behind HTTPS and add authentication and rate limiting.
 
+### Own model server (no API key)
+
+`ml/` holds a food model trained on MM-Food-100K (dish name, food type, calories, protein, carbs, fat — each with a calibrated confidence). `ml/serve.py` speaks the same `/analyze-plate` API as the Node proxy, so the app works with it unchanged:
+
+**Mac:** double-click **Start Model Server.command** (first run installs Python packages), then enter one of the URLs it prints in the app. It uses the Apple-silicon GPU when available. On a real iPhone, `localhost` is the phone itself, even over USB — use the Mac's Wi-Fi IP, or turn on the iPhone's **Personal Hotspot** while it's plugged in by USB and use the `172.20.10.x` address. (`localhost` only works in the Simulator, which has no camera.)
+
+**Windows:**
+
+```sh
+cd ml
+.venv\Scripts\python.exe serve.py              # or double-click start_server.bat; prints the URL to enter in the app
+.venv\Scripts\python.exe serve.py --token SECRET   # optional: require "Authorization: Bearer SECRET"
+```
+
+- Enter the printed `http://<LAN-IP>:8787` in **Settings → AI plate recognition**. On first run, allow Python through Windows Firewall on **private** networks.
+- The model returns one item per photo (the main dish); per-nutrient ranges are shown in the notes. `POST /analyze` (multipart or raw image) returns the full per-statistic output with confidences.
+- Weights: the server uses `ml/runs/best.pt` if you trained locally, otherwise the committed half-precision copy `ml/weights/food_model_fp16.pt` (57 MB, same predictions).
+- To run elsewhere, copy `ml/model.py`, `ml/serve.py` and `ml/weights/`, then `pip install torch torchvision timm fastapi uvicorn pillow python-multipart`. Works on CPU (slower).
+
 ## Project layout
 
 ```
