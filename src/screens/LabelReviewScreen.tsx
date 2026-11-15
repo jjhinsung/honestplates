@@ -12,7 +12,9 @@ import { rateLabel } from '../services/safetyRating';
 import { useNutritionStore } from '../store/useNutritionStore';
 import { colors, radius, spacing, type } from '../theme';
 import type { Nutrients, ParsedLabel } from '../types';
-import { caloriesFromMacros, guessMeal, scaleNutrients, toDateKey } from '../utils/nutrition';
+import { caloriesFromMacros, guessMeal, scaleNutrients, summarizeDay, toDateKey } from '../utils/nutrition';
+import { PersonalVerdictCard } from '../components/PersonalVerdictCard';
+import { personalVerdict } from '../services/personalVerdict';
 
 type NutrientValues = { [K in keyof Nutrients]?: number };
 
@@ -98,6 +100,14 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
     [perServing, ingredients, allergens],
   );
   const total = useMemo(() => scaleNutrients(perServing, servings), [perServing, servings]);
+  // Personal verdict: the user's profile + what they've already eaten today.
+  const profile = useNutritionStore(s => s.profile);
+  const entries = useNutritionStore(s => s.entries);
+  const today = useMemo(() => summarizeDay(entries, toDateKey()).totals, [entries]);
+  const verdict = useMemo(
+    () => personalVerdict({ profile, item: total, ingredients, allergens, today }),
+    [profile, total, ingredients, allergens, today],
+  );
 
   // Calorie sanity check: compare against 4·protein + 4·carbs + 9·fat (updates as the user edits).
   const macroEstimate = Math.round(caloriesFromMacros(perServing));
@@ -189,6 +199,11 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
         )}
 
         <SafetyCard rating={rating} />
+          
+          <PersonalVerdictCard
+            verdict={verdict}
+            onSetUp={() => navigation.navigate('Tabs', { screen: 'Settings' })}
+          />
 
         <Card>
           <SectionTitle right={<Stepper value={servings} onChange={setServings} />}>Servings eaten</SectionTitle>

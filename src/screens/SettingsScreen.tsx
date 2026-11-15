@@ -5,6 +5,7 @@ import { Button, Card, NumberField, SectionTitle } from '../components/ui';
 import { useNutritionStore } from '../store/useNutritionStore';
 import { colors, radius, spacing, type } from '../theme';
 import { caloriesFromMacros } from '../utils/nutrition';
+import { HealthProfileCard } from '../components/HealthProfileCard';
 
 export function SettingsScreen() {
   const insets = useSafeAreaInsets();
@@ -45,7 +46,9 @@ export function SettingsScreen() {
           {Math.abs(macroKcal - goals.calories) > 100 ? ` (calorie goal is ${goals.calories})` : ''}.
         </Text>
       </Card>
-
+          
+          <HealthProfileCard />
+          
       <Card>
         <SectionTitle>AI plate recognition</SectionTitle>
         <Text style={[type.small, { marginBottom: spacing(2) }]}>
