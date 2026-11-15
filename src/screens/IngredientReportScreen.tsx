@@ -4,6 +4,9 @@ import { CATEGORY_ICON, StatusBadge } from '../components/IngredientBits';
 import { Card } from '../components/ui';
 import type { IngredientCard } from '../data/ingredientLibrary';
 import type { RootScreenProps } from '../navigation/types';
+import { GmoCard } from '../components/GmoCard';
+import { checkGmo } from '../services/gmoCheck';
+import { useNutritionStore } from '../store/useNutritionStore';
 import { buildIngredientReport, STATUS_ORDER, type IngredientItem } from '../services/ingredientMatcher';
 import { colors, spacing, type } from '../theme';
 
@@ -16,8 +19,13 @@ const titleCase = (s: string) =>
   s === s.toUpperCase() ? s.toLowerCase().replace(/(^|[\s(/-])([a-z])/g, (_, p, c) => p + c.toUpperCase()) : s;
 
 export function IngredientReportScreen({ route, navigation }: RootScreenProps<'IngredientReport'>) {
-  const { ingredientsText, additiveTags, productName, barcode, source } = route.params;
+  const { ingredientsText, additiveTags, labelText, labelTags, productName, barcode, source } = route.params;
   const report = useMemo(() => buildIngredientReport(ingredientsText, additiveTags), [ingredientsText, additiveTags]);
+  const gmoCheckOn = useNutritionStore(s => s.gmoCheck);
+  const gmo = useMemo(
+    () => (gmoCheckOn ? checkGmo({ ingredients: ingredientsText, labelText, labelTags }) : undefined),
+    [gmoCheckOn, ingredientsText, labelText, labelTags],
+  );
 
   const openCard = (label: string, card?: IngredientCard) =>
     navigation.navigate('IngredientDetail', { label: titleCase(label), cardId: card?.id });
@@ -81,6 +89,8 @@ export function IngredientReportScreen({ route, navigation }: RootScreenProps<'I
           ))}
         </Card>
       )}
+
+      {gmo && <GmoCard result={gmo} />}
 
       <Card>
         <Text style={[type.h3, { marginBottom: spacing(1) }]}>All ingredients</Text>

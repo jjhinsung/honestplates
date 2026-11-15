@@ -61,6 +61,8 @@ export interface ParsedLabel {
   /** Allergen statement printed after the list, e.g. "MILK, SOY" from "CONTAINS: MILK, SOY." */
   containsStatement?: string;
   allergens?: string[];
+  /** Open Food Facts label tags (e.g. "en:organic", "en:no-gmos"), barcode lookups only. */
+  labelTags?: string[];
   rawText: string;
   /** Which fields were actually read from the label vs defaulted to 0. */
   detectedFields: (keyof Nutrients)[];

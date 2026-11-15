@@ -19,6 +19,9 @@ interface NutritionState {
   goals: DailyGoals;
   aiProxyUrl: string;
   profile: HealthProfile;
+  /** Show the GMO check on scan reports. */
+  gmoCheck: boolean;
+  setGmoCheck: (on: boolean) => void;
 
   addEntry: (entry: Omit<FoodEntry, 'id' | 'createdAt'>) => FoodEntry;
   addEntries: (entries: Omit<FoodEntry, 'id' | 'createdAt'>[]) => void;
@@ -46,6 +49,7 @@ export const useNutritionStore = create<NutritionState>()(
       goals: DEFAULT_GOALS,
       aiProxyUrl: DEFAULT_AI_PROXY_URL,
       profile: EMPTY_PROFILE,
+      gmoCheck: true,
       household: [],
       recallAlerts: [],
 
@@ -69,6 +73,7 @@ export const useNutritionStore = create<NutritionState>()(
         set(s => ({ entries: s.entries.filter(e => e.id !== id) })),
       setGoals: goals => set(s => ({ goals: { ...s.goals, ...goals } })),
       setAiProxyUrl: url => set({ aiProxyUrl: url.trim().replace(/\/+$/, '') }),
+      setGmoCheck: on => set({ gmoCheck: on }),
       setProfile: patch => set(s => ({ profile: { ...s.profile, ...patch } })),
       addMember: name =>
         set(s => ({
