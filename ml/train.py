@@ -24,9 +24,18 @@ ap.add_argument("--backbone", default="convnext_tiny.fb_in22k_ft_in1k")
 ap.add_argument("--workers", type=int, default=6)
 ap.add_argument("--limit", type=int, default=0, help="use only the first N rows (smoke tests)")
 ap.add_argument("--out", default="runs")
+ap.add_argument("--data", default="data/meta.csv=data/images,data/meta_rest.csv=data/images_rest",
+                help="comma-separated CSV=IMAGE_DIR pairs; missing CSVs are skipped")
 a = ap.parse_args()
 
-df = pd.read_csv("data/meta.csv")
+parts = []
+for pair in a.data.split(","):
+    csv, img_dir = pair.split("=")
+    if os.path.exists(csv):
+        part = pd.read_csv(csv)
+        part["path"] = img_dir + "/" + part.file
+        parts.append(part)
+df = pd.concat(parts, ignore_index=True)
 if a.limit:
     df = df.head(a.limit)
 df["dish"] = df.dish_name.astype(str).str.lower().str.strip()
@@ -51,7 +60,7 @@ Yn = (Ylog - mu) / sd
 tf_tr = T.Compose([T.RandomResizedCrop(a.img, scale=(0.6, 1)), T.RandomHorizontalFlip(),
                    T.ColorJitter(0.2, 0.2, 0.2), T.ToTensor(), T.Normalize(IMAGENET_MEAN, IMAGENET_STD)])
 tf_ev = eval_transform(a.img)
-FILES, CLS, TCLS = df.file.values, df.cls.values, df.tcls.values
+FILES, CLS, TCLS = df.path.values, df.cls.values, df.tcls.values
 
 
 class DS(Dataset):
@@ -63,7 +72,7 @@ class DS(Dataset):
 
     def __getitem__(self, k):
         i = self.idx[k]
-        x = self.tf(Image.open(f"data/images/{FILES[i]}").convert("RGB"))
+        x = self.tf(Image.open(FILES[i]).convert("RGB"))
         return x, int(CLS[i]), int(TCLS[i]), torch.from_numpy(Yn[i])
 
 
@@ -170,6 +179,11 @@ def main():
         "dish_temp": dish_temp, "type_temp": type_temp,
     }
     torch.save(ck, f"{a.out}/best.pt")
+    # Half-precision copy for GitHub (100 MB file limit); predictions are effectively identical.
+    ck16 = dict(ck, state={k: (v.half() if v.is_floating_point() else v) for k, v in ck["state"].items()})
+    torch.save(ck16, f"{a.out}/food_model_fp16.pt")
+    mb = os.path.getsize(f"{a.out}/food_model_fp16.pt") / 1e6
+    print(f"saved {a.out}/food_model_fp16.pt ({mb:.1f} MB){'  WARNING: over GitHub 100 MB limit' if mb >= 100 else ''}")
 
     # ---- final report on test ----
     o, c, tc, y = collect(net, dl_te, dev)
