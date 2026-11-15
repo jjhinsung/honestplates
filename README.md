@@ -53,7 +53,7 @@ cd ml
 
 - Enter the printed `http://<LAN-IP>:8787` in **Settings → AI plate recognition**. On first run, allow Python through Windows Firewall on **private** networks.
 - The model returns one item per photo (the main dish); per-nutrient ranges are shown in the notes. `POST /analyze` (multipart or raw image) returns the full per-statistic output with confidences.
-- Weights: the server uses `ml/runs/best.pt` if you trained locally, otherwise the committed half-precision copy `ml/weights/food_model_fp16.pt` (57 MB, same predictions).
+- Weights: the server uses `ml/runs/best.pt` if you trained locally, otherwise the committed half-precision copy `ml/weights/food_model_fp16.pt` (58 MB, same predictions; trained on the full ~100k images, 800 dishes).
 - To run elsewhere, copy `ml/model.py`, `ml/serve.py` and `ml/weights/`, then `pip install torch torchvision timm fastapi uvicorn pillow python-multipart`. Works on CPU (slower).
 
 ## Project layout
