@@ -110,10 +110,6 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
     [ingredients, parsed.containsStatement],
   );
   const ingredientCount = useMemo(() => splitIngredients(ingredients).length, [ingredients]);
-  const rating = useMemo(
-    () => rateLabel(perServing, ingredients, allergens),
-    [perServing, ingredients, allergens],
-  );
   const total = useMemo(() => scaleNutrients(perServing, servings), [perServing, servings]);
   // Personal verdict: the user's profile + what they've already eaten today.
   const profile = useNutritionStore(s => s.profile);
@@ -133,6 +129,45 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
   const householdRows = useMemo(
     () => householdVerdicts({ household, ingredients, allergens }),
     [household, ingredients, allergens],
+  );
+
+  // Calorie sanity check: compare against 4·protein + 4·carbs + 9·fat (updates as the user edits).
+  const macroEstimate = Math.round(caloriesFromMacros(perServing));
+  const caloriesOff =
+    macroEstimate > 0 && Math.abs(perServing.calories - macroEstimate) > Math.max(30, macroEstimate * 0.25);
+  const calorieWarning =
+    parsed.caloriesCheck?.status === 'estimated' && !caloriesEdited
+      ? `Calories couldn't be read from the label, so ${perServing.calories} kcal was estimated from protein, carbs and fat. Check the label and correct it if needed.`
+      : caloriesOff
+        ? `${perServing.calories} kcal doesn't match the protein, carbs and fat, which add up to about ${macroEstimate} kcal. Either the calorie number or one of protein, carbs or fat may have been misread — check them against the label.`
+        : undefined;
+    
+  // FDA recalls: load the (daily-cached) list once, then match barcode/name as the user edits.
+  const [recalls, setRecalls] = useState<Recall[]>([]);
+  useEffect(() => {
+    let alive = true;
+    getActiveRecalls()
+      .then(r => alive && setRecalls(r))
+      .catch(() => {}); // offline: no recall check, the rest of the screen still works
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const recallMatches = useMemo(
+    () => findRecalls({ barcode: parsed.barcode, name: name.trim() || parsed.productName }, recalls),
+    [recalls, parsed.barcode, parsed.productName, name],
+  );
+
+  // The grade needs the GMO check and the FDA recall match, so it's computed after both.
+  const rating = useMemo(
+    () =>
+      rateLabel(perServing, ingredients, allergens, {
+        additiveTags: parsed.additiveTags,
+        gmo,
+        // Only an exact barcode match counts; a name match is just a possible match.
+        fdaRecall: recallMatches.some(m => m.matchedBy === 'barcode'),
+      }),
+    [perServing, ingredients, allergens, parsed.additiveTags, gmo, recallMatches],
   );
 
   // Heart (save to the Saved tab) and Compare (scan a second product) in the header.
@@ -183,32 +218,6 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
     });
   }, [navigation, snapshot, displayName, favId, isFavorite, rating, startCompare, toggleFavorite]);
 
-  // Calorie sanity check: compare against 4·protein + 4·carbs + 9·fat (updates as the user edits).
-  const macroEstimate = Math.round(caloriesFromMacros(perServing));
-  const caloriesOff =
-    macroEstimate > 0 && Math.abs(perServing.calories - macroEstimate) > Math.max(30, macroEstimate * 0.25);
-  const calorieWarning =
-    parsed.caloriesCheck?.status === 'estimated' && !caloriesEdited
-      ? `Calories couldn't be read from the label, so ${perServing.calories} kcal was estimated from protein, carbs and fat. Check the label and correct it if needed.`
-      : caloriesOff
-        ? `${perServing.calories} kcal doesn't match the protein, carbs and fat, which add up to about ${macroEstimate} kcal. Either the calorie number or one of protein, carbs or fat may have been misread — check them against the label.`
-        : undefined;
-    
-  // FDA recalls: load the (daily-cached) list once, then match barcode/name as the user edits.
-  const [recalls, setRecalls] = useState<Recall[]>([]);
-  useEffect(() => {
-    let alive = true;
-    getActiveRecalls()
-      .then(r => alive && setRecalls(r))
-      .catch(() => {}); // offline: no recall check, the rest of the screen still works
-    return () => {
-      alive = false;
-    };
-  }, []);
-  const recallMatches = useMemo(
-    () => findRecalls({ barcode: parsed.barcode, name: name.trim() || parsed.productName }, recalls),
-    [recalls, parsed.barcode, parsed.productName, name],
-  );
     
   const [saving, setSaving] = useState(false);
   const save = async () => {

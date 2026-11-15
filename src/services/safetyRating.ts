@@ -1,5 +1,6 @@
 import { DAILY_VALUES } from '../config';
 import type { Nutrients, SafetyFlag, SafetyGrade, SafetyRating } from '../types';
+import type { GmoResult } from './gmoCheck';
 import { splitIngredients } from './ingredientParser';
 
 /**
@@ -12,7 +13,9 @@ import { splitIngredients } from './ingredientParser';
  *   2. Ingredient flags for additives that regulators or major health bodies
  *      have restricted, banned elsewhere, or advise limiting.
  *
- * Tune penalties and the ingredient list to your product's needs.
+ * Strict by design: nutrient penalties are tripled, sugar and sodium are judged as ratios
+ * (added sugar vs calories, sodium vs calories), fiber vs carbs and additives vs ingredients
+ * are checked, and ingredient deductions are capped (see the constants below rateLabel).
  */
 
 interface IngredientRule {
@@ -20,6 +23,8 @@ interface IngredientRule {
   severity: SafetyFlag['severity'];
   penalty: number;
   message: string;
+  /** Flat points for each distinct item found (artificial colors, sweeteners). */
+  group?: boolean;
 }
 
 const INGREDIENT_RULES: IngredientRule[] = [
@@ -82,12 +87,14 @@ const INGREDIENT_RULES: IngredientRule[] = [
     severity: 'caution',
     penalty: 4,
     message: 'Synthetic color additive',
+    group: true,
   },
   {
     pattern: /aspartame|sucralose|acesulfame|saccharin/i,
     severity: 'info',
     penalty: 2,
     message: 'Artificial sweetener',
+    group: true,
   },
   {
     pattern: /carrageenan/i,
@@ -107,65 +114,88 @@ function gradeFor(score: number): SafetyGrade {
 
 const pctDV = (v: number | undefined, dv: number) => ((v ?? 0) / dv) * 100;
 
+/** Extra signals that don't come from the nutrition panel or ingredient text. */
+export interface RatingExtras {
+  /** Open Food Facts additive codes (e.g. "en:e322"), barcode lookups only. */
+  additiveTags?: string[];
+  /** GMO check result; likely-GMO ingredients cost points. Leave out when the GMO check is turned off. */
+  gmo?: GmoResult;
+  /** True only when the scanned barcode matches an active FDA recall (not a loose name match). */
+  fdaRecall?: boolean;
+}
+
+// ---- Tuning (all in one place) ----
+const SEVERITY_ADD = { warning: 10, caution: 5, info: 0 } as const;
+const PER_INGREDIENT_CAP = 30; // one ingredient can cost at most this much
+const INGREDIENT_TOTAL_CAP = 40; // all ingredient-related deductions together
+const OFF_ADDITIVE_POINTS = 8;
+const OFF_ADDITIVE_CAP = 24;
+const GMO_POINTS = 3;
+const GMO_CAP = 21;
+const FLAT_EACH = 10; // each artificial color / sweetener
+const RATIO_FAIL = 10; // unhealthy additive ratio
+const FIBER_RATIO_FAIL = 5;
+const RECALL_POINTS = 40;
+const SODIUM_RATIO_MIN_MG = 140; // FDA "low sodium" cutoff: below this the ratio isn't judged
+const SUGAR_RATIO_MIN_G = 5;
+const TOTAL_SUGAR_RATIO_MIN_G = 8;
+
+const minus = (n: number) => `−${n}`;
+
 export function rateLabel(
   perServing: Nutrients,
   ingredients?: string,
   allergens: string[] = [],
+  extras: RatingExtras = {},
 ): SafetyRating {
   let score = 100;
   const flags: SafetyFlag[] = [];
   const positives: string[] = [];
+  const cal = perServing.calories;
 
-  const penalize = (
-    pct: number,
-    name: string,
-    tiers: [number, number, SafetyFlag['severity']][],
-  ) => {
-    for (const [threshold, penalty, severity] of tiers) {
-      if (pct >= threshold) {
-        score -= penalty;
-        flags.push({
-          severity,
-          message: `${name} is ${Math.round(pct)}% of daily value per serving`,
-        });
-        return;
-      }
-    }
+  const take = (points: number, severity: SafetyFlag['severity'], message: string) => {
+    score -= points;
+    flags.push({ severity, message: `${message} (${minus(points)})` });
   };
 
-  // --- Nutrient load (FDA: 5% DV is "low", 20% DV is "high") ---
-  penalize(pctDV(perServing.sodium, DAILY_VALUES.sodium), 'Sodium', [
-    [35, 22, 'warning'],
-    [20, 14, 'caution'],
-    [12, 5, 'info'],
-  ]);
-  penalize(pctDV(perServing.saturatedFat, DAILY_VALUES.saturatedFat), 'Saturated fat', [
-    [35, 20, 'warning'],
-    [20, 12, 'caution'],
-    [12, 4, 'info'],
-  ]);
-  const sugarIsAdded = perServing.addedSugar !== undefined;
-  penalize(
-    pctDV(sugarIsAdded ? perServing.addedSugar : perServing.sugar, DAILY_VALUES.addedSugar),
-    sugarIsAdded ? 'Added sugar' : 'Sugar',
-    // Total sugar includes natural sugars (fruit, milk), so be gentler without the added-sugar line.
-    sugarIsAdded
-      ? [
-          [40, 22, 'warning'],
-          [20, 12, 'caution'],
-          [10, 5, 'info'],
-        ]
-      : [
-          [50, 14, 'caution'],
-          [30, 6, 'info'],
-        ],
-  );
+  // --- Saturated fat: share of the daily value, penalties tripled ---
+  {
+    const pct = pctDV(perServing.saturatedFat, DAILY_VALUES.saturatedFat);
+    const tiers: [number, number, SafetyFlag['severity']][] = [
+      [35, 60, 'warning'],
+      [20, 36, 'warning'],
+      [12, 12, 'caution'],
+    ];
+    const hit = tiers.find(([t]) => pct >= t);
+    if (hit) take(hit[1], hit[2], `Saturated fat is ${Math.round(pct)}% of daily value per serving`);
+  }
   if ((perServing.transFat ?? 0) > 0) {
-    score -= 20;
-    flags.push({
-      severity: 'warning',
-      message: `Contains ${perServing.transFat}g trans fat per serving`,
-    });
+    take(60, 'warning', `Contains ${perServing.transFat}g trans fat per serving`);
+  }
+
+  // --- Ratios ---
+  // Added sugar as a share of calories (4 calories per gram).
+  {
+    const added = perServing.addedSugar;
+    const grams = added ?? perServing.sugar;
+    const minG = added !== undefined ? SUGAR_RATIO_MIN_G : TOTAL_SUGAR_RATIO_MIN_G;
+    if (grams !== undefined && grams >= minG && cal > 0) {
+      const share = ((grams * 4) / cal) * 100;
+      // Total sugar includes natural sugars (fruit, milk), so use gentler cutoffs when added sugar isn't listed.
+      const tiers: [number, number][] = added !== undefined ? [[35, 30], [20, 20], [10, 10]] : [[60, 30], [40, 20], [25, 10]];
+      const hit = tiers.find(([t]) => share >= t);
+      if (hit) take(hit[1], 'caution', `${added !== undefined ? 'Added sugar' : 'Sugar'} is ${Math.round(Math.min(share, 100))}% of calories`);
+    }
+  }
+  // Sodium per calorie.
+  if ((perServing.sodium ?? 0) >= SODIUM_RATIO_MIN_MG) {
+    const ratio = perServing.sodium! / Math.max(cal, 10);
+    const hit = ([[4, 30], [2, 20], [1, 10]] as [number, number][]).find(([t]) => ratio >= t);
+    if (hit) take(hit[1], 'caution', `High sodium for its calories: ${ratio.toFixed(1)} mg per calorie`);
+  }
+  // Fiber to carbs: at least 1 g of fiber per 10 g of carbs is the usual whole-grain test.
+  if (perServing.fiber !== undefined && perServing.carbs >= 15 && perServing.fiber / perServing.carbs < 0.1) {
+    take(FIBER_RATIO_FAIL, 'info', `Low fiber for its carbs: ${perServing.fiber}g per ${perServing.carbs}g`);
   }
 
   // --- Credits ---
@@ -181,38 +211,82 @@ export function rateLabel(
     positives.push('Low sodium');
   }
 
-  // --- Ingredients ---
+  // --- Ingredients (all deductions here share one cap) ---
+  const ingredientFlags: { points: number; severity: SafetyFlag['severity']; message: string }[] = [];
+  let ingredientCount = 0;
   if (ingredients) {
+    ingredientCount = splitIngredients(ingredients).length;
     const seen = new Set<string>();
     for (const rule of INGREDIENT_RULES) {
       const matches = ingredients.match(
         new RegExp(rule.pattern.source, rule.pattern.flags.includes('g') ? rule.pattern.flags : rule.pattern.flags + 'g'),
       );
       if (!matches) continue;
-      const names = Array.from(new Set(matches.map(m => m.trim())));
-      const key = rule.message;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      // Color additives: penalize each distinct dye, capped.
-      const count = rule.message.startsWith('Synthetic color') ? Math.min(names.length, 3) : 1;
-      score -= rule.penalty * count;
-      flags.push({
-        severity: rule.severity,
-        message:
-          count > 1 || rule.message.startsWith('Synthetic color')
-            ? `${rule.message}: ${names.join(', ')}`
-            : rule.message,
+      const names = Array.from(new Set(matches.map(m => m.trim().toLowerCase())));
+      if (seen.has(rule.message)) continue;
+      seen.add(rule.message);
+      let points: number;
+      let message = rule.message;
+      if (rule.group) {
+        // Artificial colors and sweeteners: a flat amount for each one found.
+        const n = Math.min(names.length, 3);
+        points = FLAT_EACH * n;
+        message = `${rule.message}: ${names.join(', ')}`;
+      } else {
+        points = Math.min(rule.penalty * 2 + SEVERITY_ADD[rule.severity], PER_INGREDIENT_CAP);
+      }
+      ingredientFlags.push({ points, severity: rule.group ? 'caution' : rule.severity, message });
+    }
+
+    // Additives Open Food Facts detected (barcode lookups).
+    const additives = Array.from(new Set((extras.additiveTags ?? []).map(t => t.toLowerCase())));
+    if (additives.length) {
+      const points = Math.min(additives.length * OFF_ADDITIVE_POINTS, OFF_ADDITIVE_CAP);
+      ingredientFlags.push({
+        points,
+        severity: 'caution',
+        message: `${additives.length} food additive${additives.length === 1 ? '' : 's'} detected${
+          additives.length * OFF_ADDITIVE_POINTS > OFF_ADDITIVE_CAP ? ' (capped)' : ''
+        }`,
+      });
+      // Additives as a share of the ingredient list: a few in a short list is more processed than in a long one.
+      if (ingredientCount > 0 && additives.length / ingredientCount >= 0.2) {
+        take(RATIO_FAIL, 'caution', `Additives are ${Math.round((additives.length / ingredientCount) * 100)}% of the ingredient list`);
+      }
+    }
+
+    // Ingredients likely made from genetically engineered crops.
+    const likely = (extras.gmo?.matches ?? []).filter(m => m.confidence === 'likely');
+    if (likely.length) {
+      const points = Math.min(likely.length * GMO_POINTS, GMO_CAP);
+      const crops = Array.from(new Set(likely.map(m => m.crop))).join(', ');
+      ingredientFlags.push({
+        points,
+        severity: 'info',
+        message: `${likely.length} ingredient${likely.length === 1 ? '' : 's'} likely from GMO crops (${crops})`,
       });
     }
+
     // A very long ingredient list is a rough proxy for ultra-processing.
-    const count = splitIngredients(ingredients).length;
-    if (count >= 20) {
-      score -= 5;
-      flags.push({ severity: 'info', message: `Long ingredient list (${count} items)` });
-    } else if (count <= 5) {
+    if (ingredientCount >= 20) {
+      ingredientFlags.push({ points: 5, severity: 'info', message: `Long ingredient list (${ingredientCount} items)` });
+    } else if (ingredientCount <= 5) {
       positives.push('Short, simple ingredient list');
     }
+
+    const raw = ingredientFlags.reduce((n, f) => n + f.points, 0);
+    for (const f of ingredientFlags) flags.push({ severity: f.severity, message: `${f.message} (${minus(f.points)})` });
+    if (raw > INGREDIENT_TOTAL_CAP) {
+      flags.push({
+        severity: 'info',
+        message: `Ingredient deductions are capped at ${minus(INGREDIENT_TOTAL_CAP)} (they added up to ${minus(raw)})`,
+      });
+    }
+    score -= Math.min(raw, INGREDIENT_TOTAL_CAP);
   }
+
+  // --- FDA recall: only when the barcode itself matches ---
+  if (extras.fdaRecall) take(RECALL_POINTS, 'warning', 'This barcode matches an active FDA recall');
 
   if (allergens.length) {
     flags.push({ severity: 'info', message: `Allergens: ${allergens.join(', ')}` });

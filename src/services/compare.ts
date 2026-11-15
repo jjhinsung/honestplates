@@ -30,7 +30,10 @@ export function summarizeProduct(
   const ingredients = label.ingredients?.trim() ?? '';
   const allergens = detectAllergens(ingredients, label.containsStatement);
   const nutrients = { ...ZERO, ...label.nutrients };
-  const rating = rateLabel(nutrients, ingredients || undefined, allergens);
+  const gmo = opts.gmoOn
+    ? checkGmo({ ingredients, labelText: label.rawText, labelTags: label.labelTags })
+    : undefined;
+  const rating = rateLabel(nutrients, ingredients || undefined, allergens, { additiveTags: label.additiveTags, gmo });
   const report = ingredients ? buildIngredientReport(ingredients, label.additiveTags) : undefined;
   const worth = report?.worthKnowing ?? [];
   return {
@@ -39,9 +42,7 @@ export function summarizeProduct(
     score: rating.score,
     worthKnowing: worth.map(c => c.name),
     flagged: worth.filter(c => c.status === 'limit' || c.status === 'restricted').map(c => c.name),
-    gmo: opts.gmoOn
-      ? checkGmo({ ingredients, labelText: label.rawText, labelTags: label.labelTags })
-      : undefined,
+    gmo,
     allergens,
     verdict: personalVerdict({ profile: opts.profile, item: nutrients, ingredients, allergens, today: ZERO }),
     hasIngredients: ingredients.length > 0,
