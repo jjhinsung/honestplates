@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScrollView, TextInput } from 'react-native';
 import { MealPicker } from '../components/MealPicker';
 import { Button, Card, NumberField, SectionTitle } from '../components/ui';
@@ -8,12 +8,19 @@ import { colors, spacing, type } from '../theme';
 import type { Nutrients } from '../types';
 import { guessMeal, toDateKey } from '../utils/nutrition';
 
-export function ManualEntryScreen({ navigation }: RootScreenProps<'ManualEntry'>) {
+export function ManualEntryScreen({ navigation, route }: RootScreenProps<'ManualEntry'>) {
   const addEntry = useNutritionStore(s => s.addEntry);
+  const updateEntry = useNutritionStore(s => s.updateEntry);
   const showMeals = useNutritionStore(s => s.showMeals);
-  const [name, setName] = useState('');
-  const [meal, setMeal] = useState(guessMeal());
-  const [n, setN] = useState<Nutrients>({ calories: 0, protein: 0, carbs: 0, fat: 0 });
+  // Reopened from the Today list: edit that entry instead of adding one.
+  const entryId = route.params?.entryId;
+  const existing = useNutritionStore(s => (entryId ? s.entries.find(e => e.id === entryId) : undefined));
+  useEffect(() => {
+    if (entryId) navigation.setOptions({ title: 'Logged food' });
+  }, [entryId, navigation]);
+  const [name, setName] = useState(existing?.name ?? '');
+  const [meal, setMeal] = useState(existing?.meal ?? guessMeal());
+  const [n, setN] = useState<Nutrients>(existing?.nutrients ?? { calories: 0, protein: 0, carbs: 0, fat: 0 });
 
   const set = (k: keyof Nutrients) => (v: number | undefined) => setN(p => ({ ...p, [k]: v ?? 0 }));
 
@@ -39,10 +46,11 @@ export function ManualEntryScreen({ navigation }: RootScreenProps<'ManualEntry'>
         </Card>
       )}
       <Button
-        title="Add"
+        title={existing ? 'Save changes' : 'Add'}
         disabled={!name.trim() || n.calories <= 0}
         onPress={() => {
-          addEntry({ name: name.trim(), date: toDateKey(), meal, source: 'manual', servings: 1, nutrients: n });
+          if (existing) updateEntry(existing.id, { name: name.trim(), meal, nutrients: n });
+          else addEntry({ name: name.trim(), date: toDateKey(), meal, source: 'manual', servings: 1, nutrients: n });
           navigation.goBack();
         }}
       />

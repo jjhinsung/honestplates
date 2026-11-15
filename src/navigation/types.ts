@@ -11,9 +11,10 @@ export type TabParamList = {
 
 export type RootStackParamList = {
   Tabs: NavigatorScreenParams<TabParamList>;
-  LabelReview: { parsed: ParsedLabel; photoPath?: string; scannedIngredients?: string };
-  PlateReview: { analysis: PlateAnalysis; photoPath: string };
-  ManualEntry: undefined;
+  /** `entryId` = reopening a logged food: the page edits that entry instead of adding a new one. */
+  LabelReview: { parsed: ParsedLabel; photoPath?: string; scannedIngredients?: string; entryId?: string };
+  PlateReview: { analysis: PlateAnalysis; photoPath?: string; entryId?: string };
+  ManualEntry: { entryId?: string } | undefined;
   IngredientReport: {
     ingredientsText: string;
     additiveTags?: string[];

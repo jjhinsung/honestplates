@@ -6,7 +6,7 @@ import { MealPicker } from '../components/MealPicker';
 import { SafetyCard } from '../components/SafetyCard';
 import { Button, Card, NumberField, SectionTitle, Stepper } from '../components/ui';
 import type { RootScreenProps } from '../navigation/types';
-import { toFileUri } from '../services/imageUtils';
+import { keepPhoto, toFileUri } from '../services/imageUtils';
 import { detectAllergens, splitIngredients } from '../services/ingredientParser';
 import { rateLabel } from '../services/safetyRating';
 import { useNutritionStore } from '../store/useNutritionStore';
@@ -38,8 +38,14 @@ const FIELDS: { key: keyof Nutrients; label: string; unit: string }[] = [
 ];
 
 export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelReview'>) {
-  const { parsed, photoPath } = route.params;
+  const { parsed, photoPath, entryId } = route.params;
   const addEntry = useNutritionStore(s => s.addEntry);
+  const updateEntry = useNutritionStore(s => s.updateEntry);
+  // Reopened from the Today list: edit that entry instead of logging a new one.
+  const existing = useNutritionStore(s => (entryId ? s.entries.find(e => e.id === entryId) : undefined));
+  useEffect(() => {
+    if (entryId) navigation.setOptions({ title: 'Logged food' });
+  }, [entryId, navigation]);
   const showMeals = useNutritionStore(s => s.showMeals);
 
     const [name, setName] = useState(parsed.productName ?? '');
@@ -48,8 +54,8 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
   const [values, setValues] = useState<NutrientValues>(() => ({ ...parsed.nutrients }));
   const [servingSize, setServingSize] = useState(parsed.servingSize ?? '');
   const [servingsPerContainer, setServingsPerContainer] = useState(parsed.servingsPerContainer);
-  const [servings, setServings] = useState(1);
-  const [meal, setMeal] = useState(guessMeal());
+  const [servings, setServings] = useState(existing?.servings ?? 1);
+  const [meal, setMeal] = useState(existing?.meal ?? guessMeal());
   const [ingredients, setIngredients] = useState(parsed.ingredients ?? '');
 
   // Show a tappable preview when there's a list; start in edit mode when there isn't.
@@ -155,18 +161,36 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
     [recalls, parsed.barcode, parsed.productName, name],
   );
     
-  const save = () => {
-    addEntry({
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    setSaving(true);
+    // Keep the page as saved (with the user's edits) so tapping the entry later reopens it.
+    const label: ParsedLabel = {
+      ...parsed,
+      productName: name.trim() || undefined,
+      nutrients: perServing,
+      ingredients: ingredients.trim() || undefined,
+      servingSize: servingSize.trim() || undefined,
+      servingsPerContainer,
+    };
+    const fields = {
       name: name.trim() || 'Packaged food',
-      date: toDateKey(),
       meal,
-      source: 'label',
       servings,
       servingDescription: servingSize.trim() || undefined,
       nutrients: total,
       safety: rating,
       barcode: parsed.barcode, // so the Today tab can re-check it against future recalls
-    });
+      photoPath: await keepPhoto(photoPath), // scan photos live in a temp folder iOS empties
+      label,
+    };
+    setSaving(false);
+    if (existing) {
+      updateEntry(existing.id, fields);
+      navigation.goBack();
+      return;
+    }
+    addEntry({ ...fields, date: toDateKey(), source: 'label' });
     navigation.popToTop();
     navigation.navigate('Tabs', { screen: 'Today' });
   };
@@ -322,7 +346,11 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
           </View>
         </Card>
 
-        <Button title={`Add ${Math.round(total.calories)} kcal to today`} onPress={save} />
+        <Button
+          title={existing ? 'Save changes' : `Add ${Math.round(total.calories)} kcal to today`}
+          onPress={save}
+          loading={saving}
+        />
 
         <Card>
           <SectionTitle
