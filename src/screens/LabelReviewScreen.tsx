@@ -173,10 +173,10 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
               placeholderTextColor={colors.textMuted}
               style={styles.nameInput}
             />
+            {parsed.source === 'barcode' && (
+              <Text style={type.small}>Barcode {parsed.barcode} · data from Open Food Facts</Text>
+            )}
             <View style={styles.servingRow}>
-              {parsed.source === 'barcode' && (
-                <Text style={type.small}>Barcode {parsed.barcode} · data from Open Food Facts</Text>
-              )}
               <Text style={type.small}>Serving size</Text>
               <TextInput
                 value={servingSize}
