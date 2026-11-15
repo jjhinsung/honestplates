@@ -13,7 +13,7 @@ import type { Nutrients, ParsedLabel } from '../types';
 
 // OPEN FOOD asks apps to identify themselves
 const OFF_PRODUCT_URL = 'https://world.openfoodfacts.org/api/v2/product';
-const USER_AGENT = 'NutriLens/0.1 (iOS; contact: you@example.com)';
+export const USER_AGENT = 'NutriLens/0.1 (iOS; contact: https://github.com/jjhinsung/honestplates)';
 const FIELDS = [
     'code', 'product_name', 'brands', 'serving_size', 'serving_quantity',
     'nutriments', 'ingredients_text', 'ingredients_text_en', 'allergens_tags',
@@ -35,29 +35,61 @@ export function barcodeVariants(code: string): string[] {
     return Array.from(new Set(v)).filter(x => x.length >= 8);
 }
 
-export async function lookupBarcode(code: string, timeoutMs = 10000):  Promise<BarcodeLookupResult> {
+const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(() => resolve(), ms));
+
+/**
+ * Fetches one product from Open Food Facts. Returns undefined when the barcode
+ * isn't in the database. Open Food Facts is sometimes slow or briefly
+ * overloaded, so a timeout, network hiccup or busy reply (429/5xx) is retried
+ * once before giving up.
+ */
+export async function fetchOffProduct(
+  code: string,
+  fields: string,
+  timeoutMs = 20000,
+  attempts = 2,
+): Promise<any | undefined> {
+  let lastError = new Error('No internet connection.');
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(`${OFF_PRODUCT_URL}/${code}.json?fields=${fields}`, {
+        headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+        signal: controller.signal,
+      });
+      if (res.status === 404) return undefined;
+      if (res.status === 429 || res.status >= 500) {
+        lastError = new Error(`The product database is busy (${res.status}). Try again in a moment.`);
+      } else if (!res.ok) {
+        throw Object.assign(new Error(`Product database error (${res.status}).`), { final: true });
+      } else {
+        const json = await res.json();
+        return json?.status === 1 && json.product ? json.product : undefined;
+      }
+    } catch (e: any) {
+      if (e?.final) throw e;
+      lastError = new Error(
+        e?.name === 'AbortError'
+          ? 'The product database took too long to respond. Check your internet connection.'
+          : 'No internet connection.',
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+    if (attempt < attempts) await sleep(800);
+  }
+  throw lastError;
+}
+
+export async function lookupBarcode(code: string, timeoutMs = 20000):  Promise<BarcodeLookupResult> {
     for (const c of barcodeVariants(code)) {
         const cached = cache.get(c);
         if (cached) return cached;
-        
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), timeoutMs);
-        let res: Response;
-        try {
-            res = await fetch(`${OFF_PRODUCT_URL}/${c}.json?fields=${FIELDS}`, {
-                headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
-                signal: controller.signal,
-            });
-        } catch (e: any) {
-            throw new Error(e?.name === 'AbortError' ? 'The product database took too long to respond.' : 'No internet connection.');
-        } finally {
-            clearTimeout(timer);
-        }
-        if (res.status === 404) continue; // unknown → try the other spelling
-        if (!res.ok) throw new Error(`Product database error (${res.status}).`);
-        const json = await res.json();
-        if (json?.status !== 1 || !json.product) continue;
-        const result = productToParsedLabel(json.product, c);
+
+        const product = await fetchOffProduct(c, FIELDS, timeoutMs);
+        if (!product) continue; // unknown → try the other spelling
+        const result = productToParsedLabel(product, c);
         cache.set(c, result);
         return result;
     }

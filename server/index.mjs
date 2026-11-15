@@ -80,6 +80,32 @@ async function analyzePlate({ imageBase64, mediaType = 'image/jpeg', hint }) {
     { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
     { type: 'text', text: hint ? `${PROMPT}\n\nUser note about this meal: ${String(hint).slice(0, 200)}` : PROMPT },
   ];
+  const text = await callModel(content, 1500);
+  return extractJson(text);
+}
+
+const EXPLAIN_PROMPT = `You explain food ingredients to ordinary shoppers in plain English.
+Explain the ingredient named below. Be accurate and calm: most additives are safe, so do not exaggerate risk.
+
+Respond with ONLY a JSON object, no markdown:
+{
+  "what": string,        // what it is, ONE sentence, max 15 words
+  "why": string,         // why it's in food, ONE sentence, max 15 words
+  "from": string,        // where it comes from (plant, animal, mineral, fermented or lab-made), ONE sentence, max 15 words
+  "status": "fine" | "note" | "limit",
+  "statusNote": string   // one sentence, max 15 words: who should care and why; mention FDA only if you are sure
+}
+Use "fine" for safe everyday ingredients, "note" for allergens, diet notes or mixed evidence,
+and "limit" only when health authorities advise limiting it.
+If the name is not a real food ingredient, set what to "Not a recognized food ingredient." and status "note".`;
+
+/** Hard cap so the phone never gets a long answer, whatever the model returns. */
+function capWords(value, max = 20) {
+  const words = String(value ?? '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  return words.length <= max ? words.join(' ') : `${words.slice(0, max).join(' ')}…`;
+}
+
+async function callModel(content, maxTokens) {
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -87,33 +113,61 @@ async function analyzePlate({ imageBase64, mediaType = 'image/jpeg', hint }) {
       'x-api-key': API_KEY,
       'anthropic-version': '2023-06-01',
     },
-    body: JSON.stringify({ model: MODEL, max_tokens: 1500, messages: [{ role: 'user', content }] }),
+    body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, messages: [{ role: 'user', content }] }),
   });
   if (!r.ok) {
     const detail = await r.text();
     throw Object.assign(new Error(`Upstream ${r.status}: ${detail.slice(0, 300)}`), { status: 502 });
   }
   const data = await r.json();
-  const text = (data.content ?? []).filter(b => b.type === 'text').map(b => b.text).join('');
-  return extractJson(text);
+  return (data.content ?? []).filter(b => b.type === 'text').map(b => b.text).join('');
 }
+
+async function explainIngredient({ name }) {
+  const clean = String(name).replace(/[\r\n]+/g, ' ').slice(0, 120);
+  const text = await callModel([{ type: 'text', text: `${EXPLAIN_PROMPT}\n\nIngredient: ${clean}` }], 400);
+  const raw = extractJson(text);
+  const status = ['fine', 'note', 'limit'].includes(raw.status) ? raw.status : 'note';
+  return {
+    what: capWords(raw.what),
+    why: capWords(raw.why),
+    from: capWords(raw.from),
+    status,
+    statusNote: capWords(raw.statusNote),
+  };
+}
+
+const ROUTES = {
+  '/analyze-plate': async body => {
+    if (typeof body.imageBase64 !== 'string' || body.imageBase64.length < 100) {
+      throw Object.assign(new Error('imageBase64 is required'), { status: 400 });
+    }
+    const started = Date.now();
+    const result = await analyzePlate(body);
+    console.log(`analyze-plate: ${result.items?.length ?? 0} items in ${Date.now() - started} ms`);
+    return result;
+  },
+  '/explain-ingredient': async body => {
+    if (typeof body.name !== 'string' || !body.name.trim()) {
+      throw Object.assign(new Error('name is required'), { status: 400 });
+    }
+    const result = await explainIngredient(body);
+    console.log(`explain-ingredient: "${body.name.slice(0, 60)}"`);
+    return result;
+  },
+};
 
 http
   .createServer(async (req, res) => {
     if (req.method === 'GET' && req.url === '/health') return send(res, 200, { ok: true, model: MODEL });
-    if (req.method !== 'POST' || req.url !== '/analyze-plate') return send(res, 404, { error: 'Not found' });
+    const route = req.method === 'POST' ? ROUTES[req.url] : undefined;
+    if (!route) return send(res, 404, { error: 'Not found' });
     if (APP_TOKEN && req.headers.authorization !== `Bearer ${APP_TOKEN}`) {
       return send(res, 401, { error: 'Unauthorized' });
     }
     try {
       const body = await readJson(req);
-      if (typeof body.imageBase64 !== 'string' || body.imageBase64.length < 100) {
-        return send(res, 400, { error: 'imageBase64 is required' });
-      }
-      const started = Date.now();
-      const result = await analyzePlate(body);
-      console.log(`analyze-plate: ${result.items?.length ?? 0} items in ${Date.now() - started} ms`);
-      send(res, 200, result);
+      send(res, 200, await route(body));
     } catch (e) {
       console.error(e);
       send(res, e.status ?? 500, { error: e.message });
