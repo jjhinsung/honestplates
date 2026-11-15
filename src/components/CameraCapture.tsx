@@ -99,7 +99,7 @@ export function CameraCapture({
       <View style={styles.permission}>
         <Text style={[type.h2, { textAlign: 'center' }]}>Camera access needed</Text>
         <Text style={[type.body, styles.permissionText]}>
-          NutriLens uses the camera to read nutrition labels and recognize the food on your plate.
+          HonestPlates uses the camera to read nutrition labels and recognize the food on your plate.
         </Text>
         {canRequestPermission ? (
           <Button title="Allow camera" onPress={requestPermission} />

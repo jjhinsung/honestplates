@@ -2,7 +2,7 @@ import type { Nutrients, PlateAnalysis, PlateItem } from '../types';
 import { photoToBase64Jpeg } from './imageUtils';
 
 /**
- * Sends a plate photo to the NutriLens AI proxy (see /server/index.mjs), which
+ * Sends a plate photo to the HonestPlates AI proxy (see /server/index.mjs), which
  * asks a vision model to identify each food, estimate the portion, and estimate
  * calories + macros. Returns validated, clamped data the UI can safely render.
  */

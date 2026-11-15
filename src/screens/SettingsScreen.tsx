@@ -86,7 +86,7 @@ export function SettingsScreen() {
       <Card>
         <SectionTitle>AI plate recognition</SectionTitle>
         <Text style={[type.small, { marginBottom: spacing(2) }]}>
-          URL of your NutriLens proxy server (see server/README). Photos are sent here for analysis.
+          URL of your HonestPlates proxy server (see server/README). Photos are sent here for analysis.
         </Text>
         <TextInput
           value={url}

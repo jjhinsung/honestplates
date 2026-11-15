@@ -47,7 +47,7 @@ fi
 
 echo ""
 echo "================================================================"
-echo "  In the NutriLens app, go to Settings → AI plate recognition"
+echo "  In the HonestPlates app, go to Settings → AI plate recognition"
 echo "  and enter one of these, then tap Test connection:"
 echo ""
 for ifc in $(ifconfig -l); do
