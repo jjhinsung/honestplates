@@ -8,6 +8,7 @@ import { scanNutritionLabel } from '../services/labelScanner';
 import React, { useCallback, useRef, useState } from 'react';
 import type { ScannedObjectType } from 'react-native-vision-camera';
 import { lookupBarcode } from '../services/barcodeLookup';
+import { lookupIngredients } from '../services/ingredientLookup';
 import { tapHaptic } from '../services/haptics';
 
 // Retail food barcodes. (US UPC-A codes arrive as EAN-13 with a leading 0 on iOS.)
@@ -22,6 +23,33 @@ export function ScanLabelScreen() {
   const [busyText, setBusyText] = useState('Reading label…');
   const lookingUp = useRef(false);
   const lastCode = useRef<{ code: string; at: number } | undefined>(undefined);
+
+  /** Ingredient report for a barcode whose product has no nutrition data. */
+  const showIngredientsOnly = useCallback(
+    async (code: string) => {
+      setBusyText('Looking up ingredients…');
+      setBusy(true);
+      try {
+        const r = await lookupIngredients(code);
+        if (r.status === 'found') {
+          nav.navigate('IngredientReport', {
+            ingredientsText: r.ingredientsText,
+            additiveTags: r.additiveTags,
+            productName: r.productName,
+            barcode: r.barcode,
+            source: 'barcode',
+          });
+        } else {
+          Alert.alert('No ingredient list yet', 'This product has no ingredient list in Open Food Facts yet.');
+        }
+      } catch (e: any) {
+        Alert.alert('Lookup failed', String(e?.message ?? e));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [nav],
+  );
 
   // Path 1: barcode → Open Food Facts. Fires automatically when a barcode is in view.
   const handleBarcode = useCallback(
@@ -38,12 +66,22 @@ export function ScanLabelScreen() {
         const result = await lookupBarcode(code);
         if (result.status === 'found') {
           nav.navigate('LabelReview', { parsed: result.parsed });
+        } else if (result.status === 'no-nutrition') {
+          // No nutrition facts in the database, but there may still be an ingredient list
+          // (this used to be the Ingredients tab's job).
+          Alert.alert(
+            'No nutrition data for this product',
+            `${result.productName ? `${result.productName}: ` : ''}barcode ${code} has no nutrition facts in ` +
+              'Open Food Facts yet. Take a photo of the Nutrition Facts panel to log it, or view its ingredients.',
+            [
+              { text: 'OK', style: 'cancel' },
+              { text: 'View ingredients', onPress: () => showIngredientsOnly(code) },
+            ],
+          );
         } else {
           Alert.alert(
-          result.status === 'not-found' ? 'Product not found' : 'No nutrition data for this product',
-          `${result.status === 'no-nutrition' && result.productName ? `${result.productName}: ` : ''}` +
-            `barcode ${code} has no nutrition facts in Open Food Facts yet. ` +
-            'Take a photo of the Nutrition Facts panel instead.',
+            'Product not found',
+            `Barcode ${code} isn't in Open Food Facts yet. Take a photo of the Nutrition Facts panel instead.`,
           );
         }
       } catch (e: any) {
@@ -53,7 +91,7 @@ export function ScanLabelScreen() {
         setBusy(false);
       }
     },
-    [busy, nav],
+    [busy, nav, showIngredientsOnly],
   );
 
   // Path 2 (unchanged): photo of the Nutrition Facts panel → on-device OCR.

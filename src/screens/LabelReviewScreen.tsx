@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import { tapHaptic } from '../services/haptics';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MacroLine } from '../components/MacroBars';
 import { MealPicker } from '../components/MealPicker';
@@ -42,6 +43,36 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
   const [servings, setServings] = useState(1);
   const [meal, setMeal] = useState(guessMeal());
   const [ingredients, setIngredients] = useState(parsed.ingredients ?? '');
+
+  // Show a tappable preview when there's a list; start in edit mode when there isn't.
+  const [editingIngredients, setEditingIngredients] = useState(!parsed.ingredients?.trim());
+
+  // Text coming back from the "Scan ingredient list" camera replaces the box and shows the preview.
+  const scannedIngredients = route.params.scannedIngredients;
+  useEffect(() => {
+    if (scannedIngredients) {
+      setIngredients(scannedIngredients);
+      setEditingIngredients(false);
+    }
+  }, [scannedIngredients]);
+
+  const scanIngredientList = () => {
+    tapHaptic();
+    navigation.navigate('IngredientsScan', { returnKey: route.key });
+  };
+
+  /** Open the ingredient-by-ingredient report for whatever is in the box now (edits included). */
+  const openIngredientReport = () => {
+    if (!ingredients.trim()) return;
+    tapHaptic();
+    navigation.navigate('IngredientReport', {
+      ingredientsText: ingredients,
+      additiveTags: parsed.additiveTags,
+      productName: name.trim() || parsed.productName,
+      barcode: parsed.barcode,
+      source: parsed.source === 'barcode' ? 'barcode' : 'photo',
+    });
+  };
 
   const perServing = useMemo<Nutrients>(
     () => ({
@@ -196,22 +227,51 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
         <Card>
           <SectionTitle
             right={
-              parsed.ingredients && ingredients !== parsed.ingredients ? (
-                <Pressable onPress={() => setIngredients(parsed.ingredients ?? '')} hitSlop={8}>
-                  <Text style={styles.link}>Reset to scan</Text>
+              <View style={styles.linkRow}>
+                <Pressable onPress={scanIngredientList} hitSlop={8}>
+                  <Text style={styles.link}>📷 Scan list</Text>
                 </Pressable>
-              ) : undefined
+                {parsed.ingredients && ingredients !== parsed.ingredients ? (
+                  <Pressable onPress={() => setIngredients(parsed.ingredients ?? '')} hitSlop={8}>
+                    <Text style={styles.link}>Reset to scan</Text>
+                  </Pressable>
+                ) : null}
+                {ingredients.trim() ? (
+                  <Pressable onPress={() => setEditingIngredients(e => !e)} hitSlop={8}>
+                    <Text style={styles.link}>{editingIngredients ? 'Done' : 'Edit'}</Text>
+                  </Pressable>
+                ) : null}
+              </View>
             }>
             Ingredients
           </SectionTitle>
-          <TextInput
-            value={ingredients}
-            onChangeText={setIngredients}
-            multiline
-            placeholder="Not detected — scan the ingredient list or paste it here for a better rating."
-            placeholderTextColor={colors.textMuted}
-            style={styles.ingredients}
-          />
+          {editingIngredients || !ingredients.trim() ? (
+            <TextInput
+              value={ingredients}
+              onChangeText={setIngredients}
+              multiline
+              autoFocus={editingIngredients && !!parsed.ingredients}
+              placeholder="Not detected — scan the ingredient list or paste it here for a better rating."
+              placeholderTextColor={colors.textMuted}
+              style={styles.ingredients}
+            />
+          ) : (
+            <Pressable
+              onPress={openIngredientReport}
+              accessibilityRole="button"
+              accessibilityLabel={`Ingredients. Opens a breakdown of ${ingredientCount} ingredients.`}
+              style={({ pressed }) => [styles.ingredientPreview, pressed && styles.previewPressed]}>
+              <Text style={styles.previewText} numberOfLines={4}>
+                {ingredients}
+              </Text>
+              <View style={styles.previewFooter}>
+                <Text style={styles.link}>
+                  🔍 See what's in it{ingredientCount > 0 ? ` (${ingredientCount})` : ''}
+                </Text>
+                <Text style={[styles.link, { fontSize: 18 }]}>›</Text>
+              </View>
+            </Pressable>
+          )}
           {ingredientCount > 0 && (
             <Text style={[type.small, { marginTop: spacing(2) }]}>
               {ingredientCount} {ingredientCount === 1 ? 'ingredient' : 'ingredients'}
@@ -353,4 +413,20 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   barcodeThumb: { alignItems: 'center', justifyContent: 'center' },
+  linkRow: { flexDirection: 'row', gap: spacing(4) },
+  ingredientPreview: {
+  borderWidth: 1,
+  borderColor: colors.border,
+  borderRadius: radius.sm,
+  padding: spacing(3),
+    backgroundColor: '#FAFBF9',
+  },
+  previewPressed: { opacity: 0.7 },
+  previewText: { fontSize: 14, color: colors.text, lineHeight: 20 },
+    previewFooter: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: spacing(2),
+    },
 });

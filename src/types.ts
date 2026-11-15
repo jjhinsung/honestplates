@@ -55,6 +55,8 @@ export interface ParsedLabel {
   servingsPerContainer?: number;
   nutrients: Nutrients;
   ingredients?: string;
+  /** Open Food Facts additive codes (e.g. "en:e322"), barcode lookups only. Sharpens the ingredient report. */
+  additiveTags?: string[];
   /** Allergen statement printed after the list, e.g. "MILK, SOY" from "CONTAINS: MILK, SOY." */
   containsStatement?: string;
   allergens?: string[];
