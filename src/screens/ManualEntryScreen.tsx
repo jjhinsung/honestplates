@@ -10,6 +10,7 @@ import { guessMeal, toDateKey } from '../utils/nutrition';
 
 export function ManualEntryScreen({ navigation }: RootScreenProps<'ManualEntry'>) {
   const addEntry = useNutritionStore(s => s.addEntry);
+  const showMeals = useNutritionStore(s => s.showMeals);
   const [name, setName] = useState('');
   const [meal, setMeal] = useState(guessMeal());
   const [n, setN] = useState<Nutrients>({ calories: 0, protein: 0, carbs: 0, fat: 0 });
@@ -31,10 +32,12 @@ export function ManualEntryScreen({ navigation }: RootScreenProps<'ManualEntry'>
         <NumberField label="Carbs" unit="g" value={n.carbs} onChange={set('carbs')} />
         <NumberField label="Fat" unit="g" value={n.fat} onChange={set('fat')} />
       </Card>
-      <Card>
-        <SectionTitle>Meal</SectionTitle>
-        <MealPicker value={meal} onChange={setMeal} />
-      </Card>
+      {showMeals && (
+        <Card>
+          <SectionTitle>Meal</SectionTitle>
+          <MealPicker value={meal} onChange={setMeal} />
+        </Card>
+      )}
       <Button
         title="Add"
         disabled={!name.trim() || n.calories <= 0}

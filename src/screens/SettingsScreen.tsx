@@ -10,7 +10,8 @@ import { HouseholdCard } from '../components/HouseholdCard';
 
 export function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { goals, setGoals, aiProxyUrl, setAiProxyUrl, clearAll, entries, gmoCheck, setGmoCheck } = useNutritionStore();
+  const { goals, setGoals, aiProxyUrl, setAiProxyUrl, clearAll, entries, showMeals, setShowMeals, gmoCheck, setGmoCheck } =
+    useNutritionStore();
   const [url, setUrl] = useState(aiProxyUrl);
   const [testing, setTesting] = useState(false);
 
@@ -69,6 +70,19 @@ export function SettingsScreen() {
         </View>
       </Card>
           
+      <Card>
+        <SectionTitle>Meals</SectionTitle>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing(3) }}>
+          <View style={{ flex: 1 }}>
+            <Text style={type.body}>Sort food into meals</Text>
+            <Text style={type.small}>
+              Choose breakfast, lunch, dinner or snack when you log food, and group Today by meal.
+            </Text>
+          </View>
+          <Switch value={showMeals} onValueChange={setShowMeals} trackColor={{ true: colors.primary }} />
+        </View>
+      </Card>
+
       <Card>
         <SectionTitle>AI plate recognition</SectionTitle>
         <Text style={[type.small, { marginBottom: spacing(2) }]}>

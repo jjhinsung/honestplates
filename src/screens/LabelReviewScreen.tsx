@@ -40,6 +40,7 @@ const FIELDS: { key: keyof Nutrients; label: string; unit: string }[] = [
 export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelReview'>) {
   const { parsed, photoPath } = route.params;
   const addEntry = useNutritionStore(s => s.addEntry);
+  const showMeals = useNutritionStore(s => s.showMeals);
 
     const [name, setName] = useState(parsed.productName ?? '');
   // Every scanned value stays editable. Fields hold exactly what the user typed
@@ -233,20 +234,95 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
           </Card>
         )}
 
-        <SafetyCard rating={rating} />
-          <RecallCard matches={recallMatches} />
           <PersonalVerdictCard
             verdict={verdict}
             onSetUp={() => navigation.navigate('Tabs', { screen: 'Settings' })}
           />
           <HouseholdVerdicts rows={householdRows} />
-          {gmo && <GmoCard result={gmo} />}
+        <Card style={styles.section}>
+          <View style={styles.sharedRow}>
+            <View style={styles.half}>
+              <SafetyCard rating={rating} compact />
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.half}>
+              <Text style={[type.small, styles.kicker]}>INGREDIENTS</Text>
+              {(editingIngredients || !ingredients.trim()) ? (
+                <Text style={styles.compactText}>
+                  {ingredients.trim() ? 'Editing the list below.' : 'Not detected. Scan or paste the list.'}
+                </Text>
+              ) : (
+                <>
+                  <Pressable
+                    onPress={openIngredientReport}
+                    accessibilityRole="button"
+                    accessibilityLabel={`See what's in it. Opens a breakdown of ${ingredientCount} ingredients.`}
+                    style={({ pressed }) => [styles.seeButton, pressed && styles.previewPressed]}>
+                    <Text style={styles.seeButtonText} numberOfLines={2}>
+                      🔍 See what's in it{ingredientCount > 0 ? ` (${ingredientCount})` : ''}
+                    </Text>
+                    <Text style={styles.seeButtonArrow}>›</Text>
+                  </Pressable>
+                  <Text style={styles.compactText} numberOfLines={3}>
+                    {ingredients}
+                  </Text>
+                </>
+              )}
+              {allergens.length > 0 && (
+                <Text style={[type.small, { marginTop: spacing(1) }]} numberOfLines={2}>
+                  Allergens: {allergens.join(', ')}
+                </Text>
+              )}
+              {!!parsed.containsStatement && (
+                <Text style={[type.small, { marginTop: spacing(1) }]} numberOfLines={2}>
+                  Label says contains: {parsed.containsStatement}
+                </Text>
+              )}
+              <View style={styles.linkWrap}>
+                <Pressable onPress={scanIngredientList} hitSlop={8}>
+                  <Text style={styles.link}>📷 Scan list</Text>
+                </Pressable>
+                {parsed.ingredients && ingredients !== parsed.ingredients ? (
+                  <Pressable onPress={() => setIngredients(parsed.ingredients ?? '')} hitSlop={8}>
+                    <Text style={styles.link}>Reset</Text>
+                  </Pressable>
+                ) : null}
+                {ingredients.trim() ? (
+                  <Pressable onPress={() => setEditingIngredients(e => !e)} hitSlop={8}>
+                    <Text style={styles.link}>{editingIngredients ? 'Done' : 'Edit'}</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            </View>
+          </View>
+          {(editingIngredients || !ingredients.trim()) && (
+            <TextInput
+              value={ingredients}
+              onChangeText={setIngredients}
+              multiline
+              autoFocus={editingIngredients && !!parsed.ingredients}
+              placeholder="Not detected — scan the ingredient list or paste it here for a better rating."
+              placeholderTextColor={colors.textMuted}
+              style={[styles.ingredients, { marginTop: spacing(3) }]}
+            />
+          )}
+        </Card>
+
+        {gmo && <GmoCard result={gmo} />}
+
+          <RecallCard matches={recallMatches} />
 
         <Card>
-          <SectionTitle right={<Stepper value={servings} onChange={setServings} />}>Servings eaten</SectionTitle>
-          <Text style={[type.h2, type.num]}>{Math.round(total.calories)} kcal</Text>
-          <MacroLine n={total} />
+          <SectionTitle>{showMeals ? 'Meal' : 'Servings'}</SectionTitle>
+          {showMeals && <MealPicker value={meal} onChange={setMeal} />}
+          <View style={[styles.servingsEaten, showMeals && { marginTop: spacing(3) }]}>
+            <Text style={type.small}>Servings eaten</Text>
+            <Stepper value={servings} onChange={setServings} />
+            <Text style={[type.h3, type.num, { marginLeft: 'auto' }]}>{Math.round(total.calories)} kcal</Text>
+          </View>
         </Card>
+
+        <Button title={`Add ${Math.round(total.calories)} kcal to today`} onPress={save} />
 
         <Card>
           <SectionTitle
@@ -275,72 +351,6 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
             />
           ))}
         </Card>
-
-        <Card>
-          <SectionTitle
-            right={
-              <View style={styles.linkRow}>
-                <Pressable onPress={scanIngredientList} hitSlop={8}>
-                  <Text style={styles.link}>📷 Scan list</Text>
-                </Pressable>
-                {parsed.ingredients && ingredients !== parsed.ingredients ? (
-                  <Pressable onPress={() => setIngredients(parsed.ingredients ?? '')} hitSlop={8}>
-                    <Text style={styles.link}>Reset to scan</Text>
-                  </Pressable>
-                ) : null}
-                {ingredients.trim() ? (
-                  <Pressable onPress={() => setEditingIngredients(e => !e)} hitSlop={8}>
-                    <Text style={styles.link}>{editingIngredients ? 'Done' : 'Edit'}</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            }>
-            Ingredients
-          </SectionTitle>
-          {editingIngredients || !ingredients.trim() ? (
-            <TextInput
-              value={ingredients}
-              onChangeText={setIngredients}
-              multiline
-              autoFocus={editingIngredients && !!parsed.ingredients}
-              placeholder="Not detected — scan the ingredient list or paste it here for a better rating."
-              placeholderTextColor={colors.textMuted}
-              style={styles.ingredients}
-            />
-          ) : (
-            <Pressable
-              onPress={openIngredientReport}
-              accessibilityRole="button"
-              accessibilityLabel={`Ingredients. Opens a breakdown of ${ingredientCount} ingredients.`}
-              style={({ pressed }) => [styles.ingredientPreview, pressed && styles.previewPressed]}>
-              <Text style={styles.previewText} numberOfLines={4}>
-                {ingredients}
-              </Text>
-              <View style={styles.previewFooter}>
-                <Text style={styles.link}>
-                  🔍 See what's in it{ingredientCount > 0 ? ` (${ingredientCount})` : ''}
-                </Text>
-                <Text style={[styles.link, { fontSize: 18 }]}>›</Text>
-              </View>
-            </Pressable>
-          )}
-          {ingredientCount > 0 && (
-            <Text style={[type.small, { marginTop: spacing(2) }]}>
-              {ingredientCount} {ingredientCount === 1 ? 'ingredient' : 'ingredients'}
-              {allergens.length ? ` · Allergens: ${allergens.join(', ')}` : ''}
-            </Text>
-          )}
-          {!!parsed.containsStatement && (
-            <Text style={[type.small, { marginTop: spacing(1) }]}>Label says contains: {parsed.containsStatement}</Text>
-          )}
-        </Card>
-
-        <Card>
-          <SectionTitle>Meal</SectionTitle>
-          <MealPicker value={meal} onChange={setMeal} />
-        </Card>
-
-        <Button title={`Add ${Math.round(total.calories)} kcal to today`} onPress={save} />
 
         {parsed.source !== 'barcode' && <ScanDiagnostics parsed={parsed} />}
         {parsed.source === 'barcode' && (
@@ -422,7 +432,16 @@ function DiagRow({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
+  kicker: { fontWeight: '700', letterSpacing: 1, marginBottom: spacing(2) },
+  section: { borderWidth: 1.5, borderColor: colors.sectionBorder },
+  sharedRow: { flexDirection: 'row', alignItems: 'stretch' },
+  half: { flex: 1 },
+  divider: { width: 1.5, backgroundColor: colors.sectionBorder, marginHorizontal: spacing(3), opacity: 0.6 },
+  compactText: { fontSize: 12, color: colors.text, marginTop: spacing(2), lineHeight: 17 },
+  linkWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing(3), marginTop: spacing(2) },
+  ingHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing(2) },
   link: { ...type.small, color: colors.primary, fontWeight: '600' },
+  servingsEaten: { flexDirection: 'row', alignItems: 'center', gap: spacing(3) },
   servingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing(2) },
   servingInput: {
     flex: 1,
@@ -474,6 +493,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#FAFBF9',
   },
   previewPressed: { opacity: 0.7 },
+  seeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryTint,
+    borderRadius: radius.md,
+    paddingVertical: spacing(2),
+    paddingHorizontal: spacing(2.5),
+    gap: spacing(1),
+  },
+  seeButtonText: { flex: 1, fontSize: 13, fontWeight: '700', color: colors.primary },
+  seeButtonArrow: { fontSize: 22, fontWeight: '700', color: colors.primary },
   previewText: { fontSize: 14, color: colors.text, lineHeight: 20 },
     previewFooter: {
       flexDirection: 'row',

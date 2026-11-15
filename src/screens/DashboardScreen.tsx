@@ -13,6 +13,7 @@ import { useNutritionStore } from '../store/useNutritionStore';
 import { colors, MACRO_COLORS, spacing, type } from '../theme';
 import type { FoodEntry, MealType } from '../types';
 import { fromDateKey, summarizeDay, summarizeWeek, toDateKey } from '../utils/nutrition';
+import { BrandLogo } from '../components/BrandLogo';
 import { RecallCard } from '../components/RecallCard';
 import { useRecallWatch } from '../hooks/useRecallWatch';
 
@@ -43,6 +44,7 @@ export function DashboardScreen() {
 
   const day = useMemo(() => summarizeDay(entries, date), [entries, date]);
   const week = useMemo(() => summarizeWeek(entries, date), [entries, date]);
+  const showMeals = useNutritionStore(s => s.showMeals);
   const dayEntries = useMemo(
     () => entries.filter(e => e.date === date).sort((a, b) => a.createdAt - b.createdAt),
     [entries, date],
@@ -58,6 +60,8 @@ export function DashboardScreen() {
     <ScrollView
       style={{ backgroundColor: colors.bg }}
       contentContainerStyle={{ padding: spacing(4), paddingTop: insets.top + spacing(2) }}>
+      <BrandLogo />
+
       {/* Date switcher */}
       <View style={styles.dateRow}>
         <Pressable hitSlop={12} onPress={() => shiftDay(-1)}>
@@ -73,16 +77,6 @@ export function DashboardScreen() {
         </Pressable>
       </View>
           
-      <RecallCard
-        matches={openRecalls}
-        title={
-          openRecalls.some(a => a.matchedBy === 'barcode')
-            ? '🚨 Recall alert for food you logged'
-            : '⚠️ Possible recall on food you logged'
-        }
-        onDismiss={dismissRecallAlert}
-      />
-          
       {/* Daily totals */}
       <Card>
         <View style={styles.dailyRow}>
@@ -93,33 +87,21 @@ export function DashboardScreen() {
         </View>
       </Card>
 
-      {/* Weekly */}
-      <Card>
-        <SectionTitle
-          right={<Text style={type.small}>{week.loggedDays}/7 days logged</Text>}>
-          Last 7 days
-        </SectionTitle>
-        <WeekChart days={week.days} goal={goals.calories} average={week.average.calories} />
-        <View style={styles.avgGrid}>
-          <AvgCell label="Avg kcal" value={Math.round(week.average.calories)} color={colors.calories} />
-          <AvgCell label="Protein" value={`${Math.round(week.average.protein)}g`} color={MACRO_COLORS.protein} />
-          <AvgCell label="Carbs" value={`${Math.round(week.average.carbs)}g`} color={MACRO_COLORS.carbs} />
-          <AvgCell label="Fat" value={`${Math.round(week.average.fat)}g`} color={MACRO_COLORS.fat} />
-        </View>
-        <Text style={[type.small, { marginTop: spacing(2), fontSize: 11 }]}>
-          Averages include only days with at least one entry.
-        </Text>
-      </Card>
-
-      {/* Entries by meal */}
-      {MEALS.map(meal => {
-        const list = dayEntries.filter(e => e.meal === meal);
+      {/* Entries (grouped by meal only when that setting is on) */}
+      {(showMeals
+        ? MEALS.map(meal => ({
+            key: meal,
+            title: meal[0].toUpperCase() + meal.slice(1),
+            list: dayEntries.filter(e => e.meal === meal),
+          }))
+        : [{ key: 'all', title: 'Logged food', list: dayEntries }]
+      ).map(({ key, title, list }) => {
         if (!list.length) return null;
         const kcal = list.reduce((s, e) => s + e.nutrients.calories, 0);
         return (
-          <Card key={meal}>
+          <Card key={key}>
             <SectionTitle right={<Text style={[type.small, type.num]}>{Math.round(kcal)} kcal</Text>}>
-              {meal[0].toUpperCase() + meal.slice(1)}
+              {title}
             </SectionTitle>
             {list.map(e => (
               <Pressable key={e.id} onLongPress={() => confirmDelete(e)} style={styles.entry}>
@@ -147,12 +129,42 @@ export function DashboardScreen() {
         </Card>
       )}
 
-      <Button title="Add manually" variant="secondary" onPress={() => nav.navigate('ManualEntry')} />
       {dayEntries.length > 0 && (
-        <Text style={[type.small, { textAlign: 'center', marginTop: spacing(3) }]}>
+        <Text style={[type.small, { textAlign: 'center', marginBottom: spacing(3) }]}>
           Long-press an entry to remove it.
         </Text>
       )}
+      <View style={{ marginBottom: spacing(48) }}>
+        <Button title="Add manually" variant="secondary" onPress={() => nav.navigate('ManualEntry')} />
+      </View>
+
+      <RecallCard
+        matches={openRecalls}
+        title={
+          openRecalls.some(a => a.matchedBy === 'barcode')
+            ? '🚨 Recall alert for food you logged'
+            : '⚠️ Possible recall on food you logged'
+        }
+        onDismiss={dismissRecallAlert}
+      />
+
+      {/* Weekly */}
+      <Card>
+        <SectionTitle
+          right={<Text style={type.small}>{week.loggedDays}/7 days logged</Text>}>
+          Last 7 days
+        </SectionTitle>
+        <WeekChart days={week.days} goal={goals.calories} average={week.average.calories} />
+        <View style={styles.avgGrid}>
+          <AvgCell label="Avg kcal" value={Math.round(week.average.calories)} color={colors.calories} />
+          <AvgCell label="Protein" value={`${Math.round(week.average.protein)}g`} color={MACRO_COLORS.protein} />
+          <AvgCell label="Carbs" value={`${Math.round(week.average.carbs)}g`} color={MACRO_COLORS.carbs} />
+          <AvgCell label="Fat" value={`${Math.round(week.average.fat)}g`} color={MACRO_COLORS.fat} />
+        </View>
+        <Text style={[type.small, { marginTop: spacing(2), fontSize: 11 }]}>
+          Averages include only days with at least one entry.
+        </Text>
+      </Card>
     </ScrollView>
   );
 }

@@ -19,6 +19,9 @@ interface NutritionState {
   goals: DailyGoals;
   aiProxyUrl: string;
   profile: HealthProfile;
+  /** Show the breakfast/lunch/dinner/snack choice and grouping (off by default). */
+  showMeals: boolean;
+  setShowMeals: (on: boolean) => void;
   /** Show the GMO check on scan reports. */
   gmoCheck: boolean;
   setGmoCheck: (on: boolean) => void;
@@ -49,6 +52,8 @@ export const useNutritionStore = create<NutritionState>()(
       goals: DEFAULT_GOALS,
       aiProxyUrl: DEFAULT_AI_PROXY_URL,
       profile: EMPTY_PROFILE,
+      showMeals: false,
+      setShowMeals: on => set({ showMeals: on }),
       gmoCheck: true,
       household: [],
       recallAlerts: [],
