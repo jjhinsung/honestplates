@@ -6,6 +6,7 @@ import { useNutritionStore } from '../store/useNutritionStore';
 import { colors, radius, spacing, type } from '../theme';
 import { caloriesFromMacros } from '../utils/nutrition';
 import { HealthProfileCard } from '../components/HealthProfileCard';
+import { HouseholdCard } from '../components/HouseholdCard';
 
 export function SettingsScreen() {
   const insets = useSafeAreaInsets();
@@ -48,6 +49,7 @@ export function SettingsScreen() {
       </Card>
           
           <HealthProfileCard />
+          <HouseholdCard />
           
       <Card>
         <SectionTitle>AI plate recognition</SectionTitle>

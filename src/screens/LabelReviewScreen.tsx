@@ -14,7 +14,8 @@ import { colors, radius, spacing, type } from '../theme';
 import type { Nutrients, ParsedLabel } from '../types';
 import { caloriesFromMacros, guessMeal, scaleNutrients, summarizeDay, toDateKey } from '../utils/nutrition';
 import { PersonalVerdictCard } from '../components/PersonalVerdictCard';
-import { personalVerdict } from '../services/personalVerdict';
+import { householdVerdicts, personalVerdict } from '../services/personalVerdict';
+import { HouseholdVerdicts } from '../components/HouseholdVerdicts';
 import { RecallCard } from '../components/RecallCard';
 import { findRecalls, getActiveRecalls, type Recall } from '../services/recallCheck';
 
@@ -109,6 +110,11 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
   const verdict = useMemo(
     () => personalVerdict({ profile, item: total, ingredients, allergens, today }),
     [profile, total, ingredients, allergens, today],
+  );
+  const household = useNutritionStore(s => s.household);
+  const householdRows = useMemo(
+    () => householdVerdicts({ household, ingredients, allergens }),
+    [household, ingredients, allergens],
   );
 
   // Calorie sanity check: compare against 4·protein + 4·carbs + 9·fat (updates as the user edits).
@@ -223,6 +229,7 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
             verdict={verdict}
             onSetUp={() => navigation.navigate('Tabs', { screen: 'Settings' })}
           />
+          <HouseholdVerdicts rows={householdRows} />
 
         <Card>
           <SectionTitle right={<Stepper value={servings} onChange={setServings} />}>Servings eaten</SectionTitle>

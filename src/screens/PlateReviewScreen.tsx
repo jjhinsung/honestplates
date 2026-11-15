@@ -7,7 +7,8 @@ import { Button, Card, NumberField, SectionTitle, Stepper } from '../components/
 import type { RootScreenProps } from '../navigation/types';
 import { toFileUri } from '../services/imageUtils';
 import { detectAllergens } from '../services/ingredientParser';
-import { personalVerdict } from '../services/personalVerdict';
+import { householdVerdicts, personalVerdict } from '../services/personalVerdict';
+import { HouseholdVerdicts } from '../components/HouseholdVerdicts';
 import { useNutritionStore } from '../store/useNutritionStore';
 import { colors, radius, spacing, type } from '../theme';
 import type { PlateItem } from '../types';
@@ -59,6 +60,11 @@ export function PlateReviewScreen({ route, navigation }: RootScreenProps<'PlateR
       }),
     [profile, total, foodNames, today],
   );
+  const household = useNutritionStore(s => s.household);
+  const householdRows = useMemo(
+    () => householdVerdicts({ household, ingredients: foodNames, allergens: detectAllergens(foodNames), context: 'plate' }),
+    [household, foodNames],
+  );
 
   const save = () => {
     const date = toDateKey();
@@ -95,6 +101,7 @@ export function PlateReviewScreen({ route, navigation }: RootScreenProps<'PlateR
         verdict={verdict}
         onSetUp={() => navigation.navigate('Tabs', { screen: 'Settings' })}
       />
+      <HouseholdVerdicts rows={householdRows} />
 
       <SectionTitle>Detected foods</SectionTitle>
       {items.map((it, idx) => {
