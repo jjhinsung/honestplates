@@ -3,6 +3,9 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
 import { Text } from 'react-native';
 import { DashboardScreen } from '../screens/DashboardScreen';
+import { IngredientDetailScreen } from '../screens/IngredientDetailScreen';
+import { IngredientReportScreen } from '../screens/IngredientReportScreen';
+import { IngredientsScanScreen } from '../screens/IngredientsScanScreen';
 import { LabelReviewScreen } from '../screens/LabelReviewScreen';
 import { ManualEntryScreen } from '../screens/ManualEntryScreen';
 import { PlateReviewScreen } from '../screens/PlateReviewScreen';
@@ -37,6 +40,11 @@ function Tabs() {
         component={ScanPlateScreen}
         options={{ title: 'Plate', tabBarIcon: icon('🍽️') }}
       />
+      <Tab.Screen
+        name="Ingredients"
+        component={IngredientsScanScreen}
+        options={{ title: 'Ingredients', tabBarIcon: icon('🔍') }}
+      />
       <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarIcon: icon('⚙️') }} />
     </Tab.Navigator>
   );
@@ -52,6 +60,16 @@ export function RootNavigator() {
         name="ManualEntry"
         component={ManualEntryScreen}
         options={{ title: 'Add food', presentation: 'modal' }}
+      />
+      <Stack.Screen
+        name="IngredientReport"
+        component={IngredientReportScreen}
+        options={{ title: "What's in it" }}
+      />
+      <Stack.Screen
+        name="IngredientDetail"
+        component={IngredientDetailScreen}
+        options={{ title: 'Ingredient' }}
       />
     </Stack.Navigator>
   );

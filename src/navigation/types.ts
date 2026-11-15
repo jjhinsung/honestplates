@@ -6,6 +6,7 @@ export type TabParamList = {
   Today: undefined;
   ScanLabel: undefined;
   ScanPlate: undefined;
+  Ingredients: undefined;
   Settings: undefined;
 };
 
@@ -14,6 +15,14 @@ export type RootStackParamList = {
   LabelReview: { parsed: ParsedLabel; photoPath?: string };
   PlateReview: { analysis: PlateAnalysis; photoPath: string };
   ManualEntry: undefined;
+  IngredientReport: {
+    ingredientsText: string;
+    additiveTags?: string[];
+    productName?: string;
+    barcode?: string;
+    source: 'barcode' | 'photo';
+  };
+  IngredientDetail: { label: string; cardId?: string };
 };
 
 export type RootScreenProps<T extends keyof RootStackParamList> = NativeStackScreenProps<
