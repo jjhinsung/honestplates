@@ -15,6 +15,8 @@ import type { Nutrients, ParsedLabel } from '../types';
 import { caloriesFromMacros, guessMeal, scaleNutrients, summarizeDay, toDateKey } from '../utils/nutrition';
 import { PersonalVerdictCard } from '../components/PersonalVerdictCard';
 import { personalVerdict } from '../services/personalVerdict';
+import { RecallCard } from '../components/RecallCard';
+import { findRecalls, getActiveRecalls, type Recall } from '../services/recallCheck';
 
 type NutrientValues = { [K in keyof Nutrients]?: number };
 
@@ -119,7 +121,23 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
       : caloriesOff
         ? `${perServing.calories} kcal doesn't match the protein, carbs and fat, which add up to about ${macroEstimate} kcal. Either the calorie number or one of protein, carbs or fat may have been misread — check them against the label.`
         : undefined;
-
+    
+  // FDA recalls: load the (daily-cached) list once, then match barcode/name as the user edits.
+  const [recalls, setRecalls] = useState<Recall[]>([]);
+  useEffect(() => {
+    let alive = true;
+    getActiveRecalls()
+      .then(r => alive && setRecalls(r))
+      .catch(() => {}); // offline: no recall check, the rest of the screen still works
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const recallMatches = useMemo(
+    () => findRecalls({ barcode: parsed.barcode, name: name.trim() || parsed.productName }, recalls),
+    [recalls, parsed.barcode, parsed.productName, name],
+  );
+    
   const save = () => {
     addEntry({
       name: name.trim() || 'Packaged food',
@@ -130,6 +148,7 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
       servingDescription: servingSize.trim() || undefined,
       nutrients: total,
       safety: rating,
+      barcode: parsed.barcode, // so the Today tab can re-check it against future recalls
     });
     navigation.popToTop();
     navigation.navigate('Tabs', { screen: 'Today' });
@@ -199,7 +218,7 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
         )}
 
         <SafetyCard rating={rating} />
-          
+          <RecallCard matches={recallMatches} />
           <PersonalVerdictCard
             verdict={verdict}
             onSetUp={() => navigation.navigate('Tabs', { screen: 'Settings' })}

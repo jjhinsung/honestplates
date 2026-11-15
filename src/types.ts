@@ -44,6 +44,7 @@ export interface FoodEntry {
   nutrients: Nutrients;
   safety?: SafetyRating;
   confidence?: number; // 0–1 for AI plate estimates
+  barcode?: string; // barcode to be checked against recalls
 }
 
 /** Result of parsing a printed Nutrition Facts panel (values are PER SERVING). */

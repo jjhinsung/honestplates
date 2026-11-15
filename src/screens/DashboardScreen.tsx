@@ -13,6 +13,8 @@ import { useNutritionStore } from '../store/useNutritionStore';
 import { colors, MACRO_COLORS, spacing, type } from '../theme';
 import type { FoodEntry, MealType } from '../types';
 import { fromDateKey, summarizeDay, summarizeWeek, toDateKey } from '../utils/nutrition';
+import { RecallCard } from '../components/RecallCard';
+import { useRecallWatch } from '../hooks/useRecallWatch';
 
 const MEALS: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 const SOURCE_ICON = { label: '🏷️', plate: '🍽️', manual: '✏️' } as const;
@@ -23,6 +25,10 @@ export function DashboardScreen() {
   const entries = useNutritionStore(s => s.entries);
   const goals = useNutritionStore(s => s.goals);
   const removeEntry = useNutritionStore(s => s.removeEntry);
+  const recallAlerts = useNutritionStore(s => s.recallAlerts);
+  const dismissRecallAlert = useNutritionStore(s => s.dismissRecallAlert);
+  const openRecalls = useMemo(() => recallAlerts.filter(a => !a.dismissed), [recallAlerts]);
+  useRecallWatch(); // re-check logged foods against new FDA recalls when this tab opens
 
   const [date, setDate] = useState(toDateKey());
   // Remount the ring each time this tab is opened so it fills up again from 0.
@@ -66,7 +72,17 @@ export function DashboardScreen() {
           <Text style={[styles.arrow, isToday && { opacity: 0.2 }]}>›</Text>
         </Pressable>
       </View>
-
+          
+      <RecallCard
+        matches={openRecalls}
+        title={
+          openRecalls.some(a => a.matchedBy === 'barcode')
+            ? '🚨 Recall alert for food you logged'
+            : '⚠️ Possible recall on food you logged'
+        }
+        onDismiss={dismissRecallAlert}
+      />
+          
       {/* Daily totals */}
       <Card>
         <View style={styles.dailyRow}>
