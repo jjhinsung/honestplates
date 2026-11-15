@@ -129,6 +129,15 @@ export interface HealthProfile {
   avoidIngredients: string[];
 }
 
+/** Someone else the user shops or cooks for (child, partner, roommate). */
+export interface HouseholdMember {
+  id: string;
+  name: string;
+  allergies: FdaAllergen[];
+  diets: DietRule[];
+  avoidIngredients: string[];
+}
+
 export interface PersonalReason {
   severity: 'avoid' | 'caution' | 'info';
   message: string;

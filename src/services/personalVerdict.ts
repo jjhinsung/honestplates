@@ -1,5 +1,5 @@
 import { findCards } from './ingredientMatcher';
-import type { HealthProfile, Nutrients, PersonalReason, PersonalVerdict } from '../types';
+import type { HealthProfile, HouseholdMember, Nutrients, PersonalReason, PersonalVerdict } from '../types';
 
 /**
  * "Is this right for ME?" — checks a food against the user's own profile:
@@ -69,9 +69,13 @@ export function personalVerdict(opts: {
    * ingredients (butter, sauces, breading) can't be checked and the wording says so.
    */
   context?: 'label' | 'plate';
+  /** Someone else's name for household members ("Leo has a peanut allergy"); omitted = the user. */
+  who?: string;
 }): PersonalVerdict | undefined {
   const { profile, item, allergens, today } = opts;
   const isPlate = opts.context === 'plate';
+  const who = opts.who;
+  const whose = who ? `${who}'s` : 'your';
   if (!hasProfile(profile)) return undefined;
 
   const ingredients = opts.ingredients?.trim() ?? '';
@@ -81,7 +85,7 @@ export function personalVerdict(opts: {
   // 1. Allergies
   const hits = profile.allergies.filter(a => allergens.includes(a));
   for (const a of hits) {
-    reasons.push({ severity: 'avoid', message: `Contains ${a.toLowerCase()} — you marked a ${a.toLowerCase()} allergy.` });
+    reasons.push({ severity: 'avoid', message: `Contains ${a.toLowerCase()} — ${who ? `${who} has` : 'you marked'} a ${a.toLowerCase()} allergy.` });
   }
   if (profile.allergies.length && !hits.length && isPlate) {
     // A photo shows dishes, not recipes — never give an all-clear for allergies.
@@ -96,7 +100,7 @@ export function personalVerdict(opts: {
             severity: 'info',
             message: `No ${profile.allergies.join(', ').toLowerCase()} found in the scanned ingredients. Check "may contain" warnings on the package.`,
           }
-        : { severity: 'caution', message: "Couldn't check your allergies: no ingredient list was found. Scan or check the package." },
+        : { severity: 'caution', message: `Couldn't check ${whose} allergies: no ingredient list was found. Scan or check the package.` },
     );
   }
 
@@ -123,18 +127,18 @@ export function personalVerdict(opts: {
     if (isPlate && profile.diets.length && !reasons.some(r => r.message.startsWith('Not '))) {
       reasons.push({
         severity: 'info',
-        message: `Nothing in the foods detected rules out your ${profile.diets.join(' / ')} diet. Cooking fats and sauces can't be seen in a photo.`,
+        message: `Nothing in the foods detected rules out ${whose} ${profile.diets.join(' / ')} diet. Cooking fats and sauces can't be seen in a photo.`,
       });
     }
   } else if (profile.diets.length) {
-    reasons.push({ severity: 'caution', message: `Couldn't check your ${profile.diets.join(' / ')} diet: no ingredient list.` });
+    reasons.push({ severity: 'caution', message: `Couldn't check ${whose} ${profile.diets.join(' / ')} diet: no ingredient list.` });
   }
 
   // 3. Ingredients to avoid
   if (haveIngredients) {
     const lower = ingredients.toLowerCase();
     const avoided = profile.avoidIngredients.filter(w => w.trim() && lower.includes(w.trim().toLowerCase()));
-    if (avoided.length) reasons.push({ severity: 'avoid', message: `Contains ${avoided.join(', ')}, which you want to avoid.` });
+    if (avoided.length) reasons.push({ severity: 'avoid', message: `Contains ${avoided.join(', ')}, which ${who ? `${who} avoids` : 'you want to avoid'}.` });
   }
 
   // 4. Daily limits, using what's already logged today
@@ -179,8 +183,38 @@ export function personalVerdict(opts: {
       ? 'caution'
       : 'ok';
   const headline =
-    level === 'avoid' ? 'Not a match for you' : level === 'caution' ? 'OK, with a heads-up' : 'Looks good for you';
+    level === 'avoid'
+      ? `Not a match for ${who ?? 'you'}`
+      : level === 'caution'
+        ? 'OK, with a heads-up'
+        : `Looks good for ${who ?? 'you'}`;
   const order = { avoid: 0, caution: 1, info: 2 };
   reasons.sort((a, b) => order[a.severity] - order[b.severity]);
   return { level, headline, reasons };
+}
+
+/**
+ * Verdicts for the other people in the household (allergies, diets, avoided
+ * ingredients only — daily limits belong to the person logging the food).
+ * Members with nothing set are skipped.
+ */
+export function householdVerdicts(opts: {
+  household: HouseholdMember[];
+  ingredients?: string;
+  allergens: string[];
+  context?: 'label' | 'plate';
+}): { member: HouseholdMember; verdict: PersonalVerdict }[] {
+  const none: Nutrients = { calories: 0, protein: 0, carbs: 0, fat: 0 };
+  return opts.household.flatMap(member => {
+    const verdict = personalVerdict({
+      profile: { allergies: member.allergies, diets: member.diets, avoidIngredients: member.avoidIngredients, limits: {} },
+      item: none,
+      ingredients: opts.ingredients,
+      allergens: opts.allergens,
+      today: none,
+      context: opts.context,
+      who: member.name,
+    });
+    return verdict ? [{ member, verdict }] : [];
+  });
 }

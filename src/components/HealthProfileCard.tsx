@@ -6,8 +6,8 @@ import { colors, radius, spacing, type } from '../theme';
 import type { DietRule, FdaAllergen, WatchedLimits } from '../types';
 import { Card, Chip, NumberField, SectionTitle } from './ui';
 
-const ALLERGENS: FdaAllergen[] = ['Milk', 'Eggs', 'Fish', 'Shellfish', 'Tree nuts', 'Peanuts', 'Wheat', 'Soy', 'Sesame'];
-const DIETS: { key: DietRule; label: string }[] = [
+export const ALLERGENS: FdaAllergen[] = ['Milk', 'Eggs', 'Fish', 'Shellfish', 'Tree nuts', 'Peanuts', 'Wheat', 'Soy', 'Sesame'];
+export const DIETS: { key: DietRule; label: string }[] = [
   { key: 'vegan', label: 'Vegan' },
   { key: 'vegetarian', label: 'Vegetarian' },
   { key: 'gluten-free', label: 'Gluten-free' },
@@ -18,7 +18,7 @@ const LIMITS: { key: keyof WatchedLimits; label: string; unit: string }[] = [
   { key: 'saturatedFat', label: 'Saturated fat', unit: 'g' },
 ];
 
-const toggle = <T,>(list: T[], item: T) => (list.includes(item) ? list.filter(x => x !== item) : [...list, item]);
+export const toggle = <T,>(list: T[], item: T) => (list.includes(item) ? list.filter(x => x !== item) : [...list, item]);
 
 /** Settings section for the personal verdict: allergies, diet, watched limits, avoided ingredients. */
 export function HealthProfileCard() {

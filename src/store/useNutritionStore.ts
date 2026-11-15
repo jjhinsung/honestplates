@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { DEFAULT_AI_PROXY_URL, DEFAULT_GOALS } from '../config';
-import type { DailyGoals, FoodEntry, HealthProfile } from '../types';
+import type { DailyGoals, FoodEntry, HealthProfile, HouseholdMember } from '../types';
 import { EMPTY_PROFILE } from '../services/personalVerdict';
 import { newId } from '../utils/nutrition';
 import type { RecallMatch } from '../services/recallCheck';
@@ -27,6 +27,11 @@ interface NutritionState {
   setGoals: (goals: Partial<DailyGoals>) => void;
   setAiProxyUrl: (url: string) => void;
   setProfile: (patch: Partial<HealthProfile>) => void;
+  /** Other people the user scans food for; checked for allergies/diet on every scan. */
+  household: HouseholdMember[];
+  addMember: (name: string) => void;
+  updateMember: (id: string, patch: Partial<Omit<HouseholdMember, 'id'>>) => void;
+  removeMember: (id: string) => void;
   /** Recalls found for foods the user already logged (checked when the Today tab opens). */
   recallAlerts: RecallAlert[];
   addRecallAlerts: (alerts: RecallAlert[]) => void;
@@ -41,6 +46,7 @@ export const useNutritionStore = create<NutritionState>()(
       goals: DEFAULT_GOALS,
       aiProxyUrl: DEFAULT_AI_PROXY_URL,
       profile: EMPTY_PROFILE,
+      household: [],
       recallAlerts: [],
 
       addEntry: entry => {
@@ -64,6 +70,16 @@ export const useNutritionStore = create<NutritionState>()(
       setGoals: goals => set(s => ({ goals: { ...s.goals, ...goals } })),
       setAiProxyUrl: url => set({ aiProxyUrl: url.trim().replace(/\/+$/, '') }),
       setProfile: patch => set(s => ({ profile: { ...s.profile, ...patch } })),
+      addMember: name =>
+        set(s => ({
+          household: [
+            ...s.household,
+            { id: newId(), name: name.trim() || 'Someone', allergies: [], diets: [], avoidIngredients: [] },
+          ],
+        })),
+      updateMember: (id, patch) =>
+        set(s => ({ household: s.household.map(m => (m.id === id ? { ...m, ...patch } : m)) })),
+      removeMember: id => set(s => ({ household: s.household.filter(m => m.id !== id) })),
       addRecallAlerts: alerts =>
           set(s => ({
           // One alert per recall; never re-add one the user already saw or dismissed.
