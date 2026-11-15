@@ -63,8 +63,15 @@ export function personalVerdict(opts: {
   allergens: string[];
   /** Totals logged so far today (not including this item). */
   today: Nutrients;
+  /**
+   * 'label' (default): `ingredients` is a printed ingredient list.
+   * 'plate': `ingredients` is just the food names the AI saw on a plate, so hidden
+   * ingredients (butter, sauces, breading) can't be checked and the wording says so.
+   */
+  context?: 'label' | 'plate';
 }): PersonalVerdict | undefined {
   const { profile, item, allergens, today } = opts;
+  const isPlate = opts.context === 'plate';
   if (!hasProfile(profile)) return undefined;
 
   const ingredients = opts.ingredients?.trim() ?? '';
@@ -76,7 +83,13 @@ export function personalVerdict(opts: {
   for (const a of hits) {
     reasons.push({ severity: 'avoid', message: `Contains ${a.toLowerCase()} — you marked a ${a.toLowerCase()} allergy.` });
   }
-  if (profile.allergies.length && !hits.length) {
+  if (profile.allergies.length && !hits.length && isPlate) {
+    // A photo shows dishes, not recipes — never give an all-clear for allergies.
+    reasons.push({
+      severity: 'caution',
+      message: `No ${profile.allergies.join(', ').toLowerCase()} in the foods detected, but a photo can't show hidden ingredients like butter, sauces or breading. Ask if you're unsure.`,
+    });
+  } else if (profile.allergies.length && !hits.length) {
     reasons.push(
       haveIngredients
         ? {
@@ -106,6 +119,12 @@ export function personalVerdict(opts: {
     if (profile.diets.includes('gluten-free')) {
       const gluten = allergens.includes('Wheat') ? 'wheat' : GLUTEN_WORDS.exec(ingredients)?.[0]?.toLowerCase();
       if (gluten) reasons.push({ severity: 'avoid', message: `Not gluten-free: contains ${gluten}.` });
+    }
+    if (isPlate && profile.diets.length && !reasons.some(r => r.message.startsWith('Not '))) {
+      reasons.push({
+        severity: 'info',
+        message: `Nothing in the foods detected rules out your ${profile.diets.join(' / ')} diet. Cooking fats and sauces can't be seen in a photo.`,
+      });
     }
   } else if (profile.diets.length) {
     reasons.push({ severity: 'caution', message: `Couldn't check your ${profile.diets.join(' / ')} diet: no ingredient list.` });
