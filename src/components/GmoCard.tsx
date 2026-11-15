@@ -16,7 +16,7 @@ const LOOK: Record<GmoStatus, { bg: string; border: string; icon: string }> = {
 export function GmoCard({ result }: { result: GmoResult }) {
   const [showAll, setShowAll] = useState(false);
   const look = LOOK[result.status];
-  const shown = showAll ? result.matches : result.matches.slice(0, 4);
+  const shown = showAll ? result.matches : result.matches.slice(0, 2);
 
   return (
     <View
@@ -27,7 +27,9 @@ export function GmoCard({ result }: { result: GmoResult }) {
       <Text style={[type.h3, { marginBottom: spacing(1) }]}>
         {look.icon}  {result.headline}
       </Text>
-      <Text style={[type.body, styles.detail]}>{result.detail}</Text>
+      <Text style={[type.body, styles.detail]} numberOfLines={3}>
+        {result.detail}
+      </Text>
 
       {!!result.evidence && <Text style={styles.evidence}>Package says: “{result.evidence}”</Text>}
 
@@ -41,34 +43,31 @@ export function GmoCard({ result }: { result: GmoResult }) {
           </Text>
         </View>
       ))}
-      {result.matches.length > 4 && (
+      {result.matches.length > 2 && (
         <Pressable onPress={() => setShowAll(s => !s)} hitSlop={8}>
           <Text style={styles.more}>{showAll ? 'Show fewer' : `Show all ${result.matches.length}`}</Text>
         </Pressable>
       )}
 
-      <Text style={styles.note}>
-        Based on the label and on which crops are mostly genetically engineered in the US. GMO foods on the market are
-        approved as safe to eat; this is for your information.
-      </Text>
+      <Text style={styles.note}>For your information, not a safety warning.</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { borderWidth: 1.5, borderRadius: radius.lg, padding: spacing(4), marginBottom: spacing(3) },
+  card: { borderWidth: 1, borderRadius: radius.lg, paddingHorizontal: spacing(3), paddingVertical: spacing(2.5), marginBottom: spacing(3) },
   kicker: { fontWeight: '700', letterSpacing: 0.6, marginBottom: spacing(1) },
-  detail: { fontSize: 14, marginBottom: spacing(2) },
+  detail: { fontSize: 13, marginBottom: spacing(1) },
   evidence: { ...type.small, fontStyle: 'italic', marginBottom: spacing(2) },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing(2),
-    paddingVertical: spacing(1.5),
+    paddingVertical: spacing(1),
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },
   likely: { color: colors.carbs, fontWeight: '600' },
   more: { ...type.small, color: colors.calories, fontWeight: '600', marginTop: spacing(1) },
-  note: { ...type.small, fontSize: 11, marginTop: spacing(2) },
+  note: { ...type.small, fontSize: 11, marginTop: spacing(1) },
 });

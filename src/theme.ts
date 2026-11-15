@@ -6,6 +6,7 @@ export const colors = {
   border: '#E4E8E2',
   primary: '#E8662B',
   primaryTint: '#FCE6DA',
+  sectionBorder: '#C2531A',
   primarySoft: '#E3F2EA',
   danger: '#D63B30',
   calories: '#1F7A4D',

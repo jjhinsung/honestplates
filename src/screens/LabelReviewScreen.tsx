@@ -239,18 +239,52 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
             onSetUp={() => navigation.navigate('Tabs', { screen: 'Settings' })}
           />
           <HouseholdVerdicts rows={householdRows} />
-        <SafetyCard rating={rating} />
-        {gmo && <GmoCard result={gmo} />}
-        <Card>
-          <SectionTitle
-            right={
-              <View style={styles.linkRow}>
+        <Card style={styles.section}>
+          <View style={styles.sharedRow}>
+            <View style={styles.half}>
+              <SafetyCard rating={rating} compact />
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.half}>
+              <Text style={[type.small, styles.kicker]}>INGREDIENTS</Text>
+              {(editingIngredients || !ingredients.trim()) ? (
+                <Text style={styles.compactText}>
+                  {ingredients.trim() ? 'Editing the list below.' : 'Not detected. Scan or paste the list.'}
+                </Text>
+              ) : (
+                <>
+                  <Pressable
+                    onPress={openIngredientReport}
+                    accessibilityRole="button"
+                    accessibilityLabel={`See what's in it. Opens a breakdown of ${ingredientCount} ingredients.`}
+                    style={({ pressed }) => [styles.seeButton, pressed && styles.previewPressed]}>
+                    <Text style={styles.seeButtonText} numberOfLines={2}>
+                      🔍 See what's in it{ingredientCount > 0 ? ` (${ingredientCount})` : ''}
+                    </Text>
+                    <Text style={styles.seeButtonArrow}>›</Text>
+                  </Pressable>
+                  <Text style={styles.compactText} numberOfLines={3}>
+                    {ingredients}
+                  </Text>
+                </>
+              )}
+              {allergens.length > 0 && (
+                <Text style={[type.small, { marginTop: spacing(1) }]} numberOfLines={2}>
+                  Allergens: {allergens.join(', ')}
+                </Text>
+              )}
+              {!!parsed.containsStatement && (
+                <Text style={[type.small, { marginTop: spacing(1) }]} numberOfLines={2}>
+                  Label says contains: {parsed.containsStatement}
+                </Text>
+              )}
+              <View style={styles.linkWrap}>
                 <Pressable onPress={scanIngredientList} hitSlop={8}>
                   <Text style={styles.link}>📷 Scan list</Text>
                 </Pressable>
                 {parsed.ingredients && ingredients !== parsed.ingredients ? (
                   <Pressable onPress={() => setIngredients(parsed.ingredients ?? '')} hitSlop={8}>
-                    <Text style={styles.link}>Reset to scan</Text>
+                    <Text style={styles.link}>Reset</Text>
                   </Pressable>
                 ) : null}
                 {ingredients.trim() ? (
@@ -259,10 +293,9 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
                   </Pressable>
                 ) : null}
               </View>
-            }>
-            Ingredients
-          </SectionTitle>
-          {editingIngredients || !ingredients.trim() ? (
+            </View>
+          </View>
+          {(editingIngredients || !ingredients.trim()) && (
             <TextInput
               value={ingredients}
               onChangeText={setIngredients}
@@ -270,37 +303,12 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
               autoFocus={editingIngredients && !!parsed.ingredients}
               placeholder="Not detected — scan the ingredient list or paste it here for a better rating."
               placeholderTextColor={colors.textMuted}
-              style={styles.ingredients}
+              style={[styles.ingredients, { marginTop: spacing(3) }]}
             />
-          ) : (
-            <View style={{ gap: spacing(2) }}>
-              <Pressable
-                onPress={openIngredientReport}
-                accessibilityRole="button"
-                accessibilityLabel={`See what's in it. Opens a breakdown of ${ingredientCount} ingredients.`}
-                style={({ pressed }) => [styles.seeButton, pressed && styles.previewPressed]}>
-                <Text style={styles.seeButtonText}>
-                  🔍 See what's in it{ingredientCount > 0 ? ` (${ingredientCount})` : ''}
-                </Text>
-                <Text style={styles.seeButtonArrow}>›</Text>
-              </Pressable>
-              <View style={styles.ingredientPreview}>
-                <Text style={styles.previewText} numberOfLines={4}>
-                  {ingredients}
-                </Text>
-              </View>
-            </View>
-          )}
-          {ingredientCount > 0 && (
-            <Text style={[type.small, { marginTop: spacing(2) }]}>
-              {ingredientCount} {ingredientCount === 1 ? 'ingredient' : 'ingredients'}
-              {allergens.length ? ` · Allergens: ${allergens.join(', ')}` : ''}
-            </Text>
-          )}
-          {!!parsed.containsStatement && (
-            <Text style={[type.small, { marginTop: spacing(1) }]}>Label says contains: {parsed.containsStatement}</Text>
           )}
         </Card>
+
+        {gmo && <GmoCard result={gmo} />}
 
           <RecallCard matches={recallMatches} />
 
@@ -424,6 +432,14 @@ function DiagRow({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
+  kicker: { fontWeight: '700', letterSpacing: 1, marginBottom: spacing(2) },
+  section: { borderWidth: 1.5, borderColor: colors.sectionBorder },
+  sharedRow: { flexDirection: 'row', alignItems: 'stretch' },
+  half: { flex: 1 },
+  divider: { width: 1.5, backgroundColor: colors.sectionBorder, marginHorizontal: spacing(3), opacity: 0.6 },
+  compactText: { fontSize: 12, color: colors.text, marginTop: spacing(2), lineHeight: 17 },
+  linkWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing(3), marginTop: spacing(2) },
+  ingHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing(2) },
   link: { ...type.small, color: colors.primary, fontWeight: '600' },
   servingsEaten: { flexDirection: 'row', alignItems: 'center', gap: spacing(3) },
   servingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing(2) },
@@ -485,10 +501,11 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
     backgroundColor: colors.primaryTint,
     borderRadius: radius.md,
-    paddingVertical: spacing(3),
-    paddingHorizontal: spacing(4),
+    paddingVertical: spacing(2),
+    paddingHorizontal: spacing(2.5),
+    gap: spacing(1),
   },
-  seeButtonText: { fontSize: 15, fontWeight: '700', color: colors.primary },
+  seeButtonText: { flex: 1, fontSize: 13, fontWeight: '700', color: colors.primary },
   seeButtonArrow: { fontSize: 22, fontWeight: '700', color: colors.primary },
   previewText: { fontSize: 14, color: colors.text, lineHeight: 20 },
     previewFooter: {
