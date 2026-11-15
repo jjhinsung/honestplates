@@ -1,4 +1,4 @@
-# NutriLens
+# HonestPlate
 
 A React Native (iOS) nutrient tracker built on three inputs:
 
@@ -21,10 +21,10 @@ A React Native (iOS) nutrient tracker built on three inputs:
 ```sh
 npm install
 cd ios && bundle install && bundle exec pod install && cd ..   # or just: cd ios && pod install
-open ios/NutriLens.xcworkspace                                  # always the .xcworkspace, not the .xcodeproj
+open ios/HonestPlate.xcworkspace                                  # always the .xcworkspace, not the .xcodeproj
 ```
 
-In Xcode: select the **NutriLens** target → **Signing & Capabilities** → choose your Team and change the bundle identifier (it defaults to `org.reactjs.native.example.NutriLens`). Then pick your iPhone and press Run. Metro starts automatically (or run `npm start`).
+In Xcode: select the **HonestPlate** target → **Signing & Capabilities** → choose your Team and change the bundle identifier (it defaults to `org.reactjs.native.example.HonestPlate`). Then pick your iPhone and press Run. Metro starts automatically (or run `npm start`).
 
 ### AI proxy (for plate recognition)
 
