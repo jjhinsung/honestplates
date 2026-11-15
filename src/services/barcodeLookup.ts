@@ -167,6 +167,7 @@ export function productToParsedLabel(product: any, barcode: string): BarcodeLook
         nutrients,
         ingredients: product.ingredients_text_en || product.ingredients_text || undefined,
         additiveTags: Array.isArray(product.additives_tags) ? product.additives_tags : undefined,
+        labelTags: Array.isArray(product.labels_tags) ? product.labels_tags : undefined,
         allergens,
         rawText: '',
         detectedFields,
