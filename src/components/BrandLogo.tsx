@@ -19,7 +19,7 @@ export function BrandLogo() {
   return (
     <View style={styles.row} accessibilityRole="header">
       <ForkSpoon size={26} color={colors.primary} />
-      <Text style={styles.word}>honestplates</Text>
+      <Text style={styles.word}>HonestPlates</Text>
     </View>
   );
 }
