@@ -78,3 +78,13 @@ yarn-error.log
 ios/build/
 /vendor/
 .env
+
+# ML (venv, dataset, checkpoints, logs)
+ml/.venv/
+ml/data/
+ml/runs/
+ml/runs_*/
+ml/*.pt
+ml/*.log
+ml/__pycache__/
+ml/**/*.csv
