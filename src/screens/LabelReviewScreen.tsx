@@ -1,5 +1,5 @@
 import { tapHaptic } from '../services/haptics';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MacroLine } from '../components/MacroBars';
 import { MealPicker } from '../components/MealPicker';
@@ -9,7 +9,8 @@ import type { RootScreenProps } from '../navigation/types';
 import { keepPhoto, toFileUri } from '../services/imageUtils';
 import { detectAllergens, splitIngredients } from '../services/ingredientParser';
 import { rateLabel } from '../services/safetyRating';
-import { useNutritionStore } from '../store/useNutritionStore';
+import { favoriteId, useNutritionStore } from '../store/useNutritionStore';
+import { useCompareStore } from '../store/useCompareStore';
 import { colors, radius, spacing, type } from '../theme';
 import type { Nutrients, ParsedLabel } from '../types';
 import { caloriesFromMacros, guessMeal, scaleNutrients, summarizeDay, toDateKey } from '../utils/nutrition';
@@ -133,6 +134,54 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
     () => householdVerdicts({ household, ingredients, allergens }),
     [household, ingredients, allergens],
   );
+
+  // Heart (save to the Saved tab) and Compare (scan a second product) in the header.
+  const favorites = useNutritionStore(s => s.favorites);
+  const toggleFavorite = useNutritionStore(s => s.toggleFavorite);
+  const startCompare = useCompareStore(s => s.start);
+  const displayName = name.trim() || parsed.productName || 'Packaged food';
+  const snapshot = useMemo<ParsedLabel>(
+    () => ({
+      ...parsed,
+      productName: displayName,
+      nutrients: perServing,
+      ingredients: ingredients.trim() || undefined,
+      servingSize: servingSize.trim() || undefined,
+      servingsPerContainer,
+    }),
+    [parsed, displayName, perServing, ingredients, servingSize, servingsPerContainer],
+  );
+  const favId = favoriteId(snapshot, displayName);
+  const isFavorite = favorites.some(f => f.id === favId);
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing(4) }}>
+          <Pressable
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Compare with another product"
+            onPress={() => {
+              tapHaptic();
+              startCompare(snapshot, displayName);
+              navigation.navigate('Tabs', { screen: 'ScanLabel' });
+            }}>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: colors.primary }}>⇄ Compare</Text>
+          </Pressable>
+          <Pressable
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={isFavorite ? 'Remove from saved' : 'Save to favorites'}
+            onPress={() => {
+              tapHaptic();
+              toggleFavorite({ id: favId, name: displayName, grade: rating.grade, score: rating.score, label: snapshot });
+            }}>
+            <Text style={{ fontSize: 24, color: colors.primary }}>{isFavorite ? '♥' : '♡'}</Text>
+          </Pressable>
+        </View>
+      ),
+    });
+  }, [navigation, snapshot, displayName, favId, isFavorite, rating, startCompare, toggleFavorite]);
 
   // Calorie sanity check: compare against 4·protein + 4·carbs + 9·fat (updates as the user edits).
   const macroEstimate = Math.round(caloriesFromMacros(perServing));
@@ -346,11 +395,13 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
           </View>
         </Card>
 
-        <Button
-          title={existing ? 'Save changes' : `Add ${Math.round(total.calories)} kcal to today`}
-          onPress={save}
-          loading={saving}
-        />
+        <View style={{ marginBottom: spacing(6) }}>
+          <Button
+            title={existing ? 'Save changes' : `Add ${Math.round(total.calories)} kcal to today`}
+            onPress={save}
+            loading={saving}
+          />
+        </View>
 
         <Card>
           <SectionTitle

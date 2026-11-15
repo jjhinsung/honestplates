@@ -1,6 +1,7 @@
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Alert } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraCapture } from '../components/CameraCapture';
 import type { RootStackParamList } from '../navigation/types';
 import { isUsableParse } from '../services/labelParser';
@@ -11,6 +12,9 @@ import { findBarcodeInPhoto } from '../services/barcodeImage';
 import { lookupBarcode, type BarcodeLookupResult } from '../services/barcodeLookup';
 import { lookupIngredients } from '../services/ingredientLookup';
 import { tapHaptic } from '../services/haptics';
+import { useCompareStore } from '../store/useCompareStore';
+import type { ParsedLabel } from '../types';
+import { colors, radius, spacing } from '../theme';
 
 // Retail food barcodes. (US UPC-A codes arrive as EAN-13 with a leading 0 on iOS.)
 const FOOD_BARCODES: ScannedObjectType[] = ['ean-13', 'ean-8', 'upc-e', 'itf-14'];
@@ -24,6 +28,29 @@ export function ScanLabelScreen() {
   const [busyText, setBusyText] = useState('Reading label…');
   const lookingUp = useRef(false);
   const lastCode = useRef<{ code: string; at: number } | undefined>(undefined);
+  const insets = useSafeAreaInsets();
+
+  // Compare mode: a first product is waiting, so the next successful scan opens the comparison.
+  const compareFirst = useCompareStore(s => s.first);
+  const clearCompare = useCompareStore(s => s.clear);
+
+  /** Shows a scanned product: the usual review page, or the comparison when a first product is waiting. */
+  const openResult = useCallback(
+    (parsed: ParsedLabel, photoPath?: string) => {
+      const first = useCompareStore.getState().first;
+      if (!first) {
+        nav.navigate('LabelReview', { parsed, photoPath });
+        return;
+      }
+      if (parsed.barcode && parsed.barcode === first.label.barcode) {
+        Alert.alert('Same product', 'That is the same product. Scan a different one to compare.');
+        return;
+      }
+      useCompareStore.getState().clear();
+      nav.navigate('Compare', { a: first.label, b: parsed, aName: first.name });
+    },
+    [nav],
+  );
 
   /** Ingredient report for a barcode whose product has no nutrition data. */
   const showIngredientsOnly = useCallback(
@@ -94,7 +121,7 @@ export function ScanLabelScreen() {
       try {
         const result = await lookupBarcode(code);
         if (result.status === 'found') {
-          nav.navigate('LabelReview', { parsed: result.parsed });
+          openResult(result.parsed);
         } else {
           explainBarcodeMiss(code, result);
         }
@@ -105,7 +132,7 @@ export function ScanLabelScreen() {
         setBusy(false);
       }
     },
-    [busy, nav, explainBarcodeMiss],
+    [busy, openResult, explainBarcodeMiss],
   );
 
   // Path 2: photo of the Nutrition Facts panel → on-device OCR.
@@ -124,7 +151,7 @@ export function ScanLabelScreen() {
           try {
             const result = await lookupBarcode(code);
             if (result.status === 'found') {
-              nav.navigate('LabelReview', { parsed: result.parsed, photoPath });
+              openResult(result.parsed, photoPath);
               return;
             }
             barcodeMiss = { code, outcome: result };
@@ -148,12 +175,12 @@ export function ScanLabelScreen() {
           'Fill the frame with the Nutrition Facts panel, avoid glare, and hold steady. You can also review and fill in the values by hand.',
           [
             { text: 'Retake', style: 'cancel' },
-            { text: 'Review anyway', onPress: () => nav.navigate('LabelReview', { parsed, photoPath }) },
+            { text: 'Review anyway', onPress: () => openResult(parsed, photoPath) },
           ],
         );
         return;
       }
-      nav.navigate('LabelReview', { parsed, photoPath });
+      openResult(parsed, photoPath);
     } catch (e: any) {
       Alert.alert('Scan failed', e?.message ?? String(e));
     } finally {
@@ -162,14 +189,47 @@ export function ScanLabelScreen() {
   };
 
   return (
-    <CameraCapture
-          overlay="label"
-          hint="Point at the barcode — or snap the Nutrition Facts panel"
-          busy={busy}
-          busyText={busyText}
-          onCapture={handleCapture}
-          barcodeTypes={FOOD_BARCODES}
-          onBarcode={handleBarcode}
-    />
+    <View style={{ flex: 1 }}>
+      <CameraCapture
+        overlay="label"
+        hint={compareFirst ? 'Scan the second product to compare' : 'Point at the barcode — or snap the Nutrition Facts panel'}
+        busy={busy}
+        busyText={busyText}
+        onCapture={handleCapture}
+        barcodeTypes={FOOD_BARCODES}
+        onBarcode={handleBarcode}
+      />
+      {compareFirst && (
+        <View style={[styles.banner, { top: insets.top + spacing(2) }]} pointerEvents="box-none">
+          <View style={styles.bannerBox}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.bannerTitle}>⇄ Comparing</Text>
+              <Text style={styles.bannerText} numberOfLines={1}>
+                {compareFirst.name} vs … scan the other product
+              </Text>
+            </View>
+            <Pressable onPress={clearCompare} hitSlop={10} accessibilityRole="button" accessibilityLabel="Cancel comparing">
+              <Text style={styles.bannerCancel}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  banner: { position: 'absolute', left: spacing(4), right: spacing(4), zIndex: 10 },
+  bannerBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(3),
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    paddingVertical: spacing(2),
+    paddingHorizontal: spacing(3),
+  },
+  bannerTitle: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  bannerText: { color: '#fff', fontSize: 12 },
+  bannerCancel: { color: '#fff', fontWeight: '700', fontSize: 13 },
+});

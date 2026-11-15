@@ -12,7 +12,7 @@ import type { RootStackParamList } from '../navigation/types';
 import { useNutritionStore } from '../store/useNutritionStore';
 import { resolvePhotoPath } from '../services/imageUtils';
 import { labelFromEntry, plateItemFromEntry } from '../utils/entryDetails';
-import { colors, MACRO_COLORS, spacing, type } from '../theme';
+import { colors, MACRO_COLORS, radius, spacing, type } from '../theme';
 import type { FoodEntry, MealType } from '../types';
 import { fromDateKey, summarizeDay, summarizeWeek, toDateKey } from '../utils/nutrition';
 import { BrandLogo } from '../components/BrandLogo';
@@ -47,6 +47,7 @@ export function DashboardScreen() {
   const day = useMemo(() => summarizeDay(entries, date), [entries, date]);
   const week = useMemo(() => summarizeWeek(entries, date), [entries, date]);
   const showMeals = useNutritionStore(s => s.showMeals);
+  const favoriteCount = useNutritionStore(s => s.favorites.length);
   const dayEntries = useMemo(
     () => entries.filter(e => e.date === date).sort((a, b) => a.createdAt - b.createdAt),
     [entries, date],
@@ -157,6 +158,15 @@ export function DashboardScreen() {
       )}
       <View style={{ marginBottom: spacing(48) }}>
         <Button title="Add manually" variant="secondary" onPress={() => nav.navigate('ManualEntry')} />
+        <Pressable
+          onPress={() => nav.navigate('Saved')}
+          accessibilityRole="button"
+          accessibilityLabel={`Saved foods, ${favoriteCount} saved`}
+          style={({ pressed }) => [styles.savedTile, pressed && { opacity: 0.8 }]}>
+          <Text style={styles.savedHeart}>♥</Text>
+          <Text style={styles.savedLabel}>Saved</Text>
+          <Text style={styles.savedCount}>{favoriteCount}</Text>
+        </Pressable>
       </View>
 
       <RecallCard
@@ -207,6 +217,22 @@ const styles = StyleSheet.create({
     marginBottom: spacing(3),
     paddingHorizontal: spacing(1),
   },
+  savedTile: {
+    alignSelf: 'flex-start',
+    width: 120,
+    height: 120,
+    marginTop: spacing(3),
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  savedHeart: { fontSize: 36, color: colors.primary },
+  savedLabel: { fontSize: 15, fontWeight: '700', color: colors.primary },
+  savedCount: { fontSize: 12, color: colors.textMuted },
   arrow: { fontSize: 32, color: colors.primary, paddingHorizontal: spacing(2) },
   dailyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing(4) },
   avgGrid: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing(4) },

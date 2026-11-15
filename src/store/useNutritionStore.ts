@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { DEFAULT_AI_PROXY_URL, DEFAULT_GOALS } from '../config';
-import type { DailyGoals, FoodEntry, HealthProfile, HouseholdMember } from '../types';
+import type { DailyGoals, FoodEntry, HealthProfile, HouseholdMember, ParsedLabel, SafetyGrade } from '../types';
 import { EMPTY_PROFILE } from '../services/personalVerdict';
 import { newId } from '../utils/nutrition';
 import { deleteKeptPhoto } from '../services/imageUtils';
@@ -15,6 +15,20 @@ export interface RecallAlert extends RecallMatch {
   dismissed: boolean;
 }
 
+/** A product the user saved as a good find. Keeps the whole scan so it reopens instantly, even offline. */
+export interface FavoriteFood {
+  id: string;
+  name: string;
+  savedAt: number;
+  grade: SafetyGrade;
+  score: number;
+  label: ParsedLabel;
+}
+
+/** Same product → same id: the barcode when there is one, otherwise the name. */
+export const favoriteId = (label: ParsedLabel, name: string) =>
+  label.barcode ? `bc:${label.barcode}` : `nm:${name.trim().toLowerCase()}`;
+
 interface NutritionState {
   entries: FoodEntry[];
   goals: DailyGoals;
@@ -26,6 +40,11 @@ interface NutritionState {
   /** Show the GMO check on scan reports. */
   gmoCheck: boolean;
   setGmoCheck: (on: boolean) => void;
+
+  favorites: FavoriteFood[];
+  /** Saves the product, or removes it if it's already saved. */
+  toggleFavorite: (fav: Omit<FavoriteFood, 'savedAt'>) => void;
+  removeFavorite: (id: string) => void;
 
   addEntry: (entry: Omit<FoodEntry, 'id' | 'createdAt'>) => FoodEntry;
   addEntries: (entries: Omit<FoodEntry, 'id' | 'createdAt'>[]) => void;
@@ -58,6 +77,14 @@ export const useNutritionStore = create<NutritionState>()(
       gmoCheck: true,
       household: [],
       recallAlerts: [],
+      favorites: [],
+      toggleFavorite: fav =>
+        set(s =>
+          s.favorites.some(f => f.id === fav.id)
+            ? { favorites: s.favorites.filter(f => f.id !== fav.id) }
+            : { favorites: [{ ...fav, savedAt: Date.now() }, ...s.favorites] },
+        ),
+      removeFavorite: id => set(s => ({ favorites: s.favorites.filter(f => f.id !== id) })),
 
       addEntry: entry => {
         const full: FoodEntry = { ...entry, id: newId(), createdAt: Date.now() };

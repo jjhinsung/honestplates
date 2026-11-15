@@ -2,6 +2,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
 import { Text } from 'react-native';
+import { CompareScreen } from '../screens/CompareScreen';
+import { SavedScreen } from '../screens/SavedScreen';
 import { DashboardScreen } from '../screens/DashboardScreen';
 import { IngredientDetailScreen } from '../screens/IngredientDetailScreen';
 import { IngredientReportScreen } from '../screens/IngredientReportScreen';
@@ -66,6 +68,8 @@ export function RootNavigator() {
         component={IngredientsScanScreen}
         options={{ title: 'Scan ingredient list' }}
       />
+      <Stack.Screen name="Saved" component={SavedScreen} options={{ title: 'Saved' }} />
+      <Stack.Screen name="Compare" component={CompareScreen} options={{ title: 'Compare' }} />
       <Stack.Screen
         name="IngredientDetail"
         component={IngredientDetailScreen}
