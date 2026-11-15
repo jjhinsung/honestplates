@@ -1,4 +1,4 @@
-// NutriLens AI proxy — keeps your model API key off the phone.
+// HonestPlates AI proxy — keeps your model API key off the phone.
 //
 //   ANTHROPIC_API_KEY=sk-ant-... node index.mjs
 //
@@ -173,4 +173,4 @@ http
       send(res, e.status ?? 500, { error: e.message });
     }
   })
-  .listen(PORT, () => console.log(`NutriLens AI proxy on http://localhost:${PORT} (model: ${MODEL})`));
+  .listen(PORT, () => console.log(`HonestPlates AI proxy on http://localhost:${PORT} (model: ${MODEL})`));

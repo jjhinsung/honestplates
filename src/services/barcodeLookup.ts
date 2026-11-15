@@ -13,7 +13,7 @@ import type { Nutrients, ParsedLabel } from '../types';
 
 // OPEN FOOD asks apps to identify themselves
 const OFF_PRODUCT_URL = 'https://world.openfoodfacts.org/api/v2/product';
-export const USER_AGENT = 'NutriLens/0.1 (iOS; contact: https://github.com/jjhinsung/honestplates)';
+export const USER_AGENT = 'HonestPlates/0.1 (iOS; contact: https://github.com/jjhinsung/honestplates)';
 const FIELDS = [
     'code', 'product_name', 'brands', 'serving_size', 'serving_quantity',
     'nutriments', 'ingredients_text', 'ingredients_text_en', 'allergens_tags', 'nutriments', 'ingredients_text', 'ingredients_text_en', 'allergens_tags', 'additives_tags',

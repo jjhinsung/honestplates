@@ -1,5 +1,5 @@
 /**
- * NutriLens — nutrition label scanner + AI plate recognition + label safety
+ * HonestPlates — nutrition label scanner + AI plate recognition + label safety
  * rating, feeding a daily/weekly calorie & macro tracker.
  */
 import { DefaultTheme, NavigationContainer } from '@react-navigation/native';

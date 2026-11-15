@@ -1,5 +1,5 @@
 /**
- * Asks the NutriLens AI proxy (server/index.mjs → /explain-ingredient) to explain
+ * Asks the HonestPlates AI proxy (server/index.mjs → /explain-ingredient) to explain
  * an ingredient that isn't in the built-in library. The answer is shown with an
  * "AI explanation, not verified" label and is never stored in the library.
  */

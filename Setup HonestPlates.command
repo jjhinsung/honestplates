@@ -10,7 +10,7 @@ fail() {
   exit 1
 }
 
-echo "=== NutriLens setup ==="
+echo "=== HonestPlates setup ==="
 
 # Find Node.js (Homebrew, the nodejs.org installer, or nvm)
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"

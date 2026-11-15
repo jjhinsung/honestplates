@@ -84,7 +84,7 @@ export function IngredientDetailScreen({ route, navigation }: RootScreenProps<'I
         {!ai && (
           <>
             <Text style={[type.body, { marginVertical: spacing(3), color: colors.textMuted }]}>
-              This ingredient isn't in the NutriLens library yet. You can ask the AI for a short explanation.
+              This ingredient isn't in the HonestPlates library yet. You can ask the AI for a short explanation.
             </Text>
             <Button title="Explain with AI" onPress={askAi} loading={loading} />
             {error && <Text style={[type.small, { color: colors.danger, marginTop: spacing(2) }]}>{error}</Text>}
