@@ -2,13 +2,16 @@ import React, { useMemo, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MacroLine } from '../components/MacroBars';
 import { MealPicker } from '../components/MealPicker';
+import { PersonalVerdictCard } from '../components/PersonalVerdictCard';
 import { Button, Card, NumberField, SectionTitle, Stepper } from '../components/ui';
 import type { RootScreenProps } from '../navigation/types';
 import { toFileUri } from '../services/imageUtils';
+import { detectAllergens } from '../services/ingredientParser';
+import { personalVerdict } from '../services/personalVerdict';
 import { useNutritionStore } from '../store/useNutritionStore';
 import { colors, radius, spacing, type } from '../theme';
 import type { PlateItem } from '../types';
-import { addNutrients, emptyNutrients, guessMeal, scaleNutrients, toDateKey } from '../utils/nutrition';
+import { addNutrients, emptyNutrients, guessMeal, scaleNutrients, summarizeDay, toDateKey } from '../utils/nutrition';
 
 interface EditableItem extends PlateItem {
   included: boolean;
@@ -33,6 +36,28 @@ export function PlateReviewScreen({ route, navigation }: RootScreenProps<'PlateR
         .filter(i => i.included)
         .reduce((acc, i) => addNutrients(acc, scaleNutrients(i.nutrients, i.multiplier)), emptyNutrients()),
     [items],
+  );
+
+  // Personal verdict for the whole plate: daily limits use the plate total; allergy and
+  // diet checks can only use the food names the AI detected (no ingredient list).
+  const profile = useNutritionStore(s => s.profile);
+  const entries = useNutritionStore(s => s.entries);
+  const today = useMemo(() => summarizeDay(entries, toDateKey()).totals, [entries]);
+  const foodNames = useMemo(
+    () => items.filter(i => i.included).map(i => i.name).join(', '),
+    [items],
+  );
+  const verdict = useMemo(
+    () =>
+      personalVerdict({
+        profile,
+        item: total,
+        ingredients: foodNames,
+        allergens: detectAllergens(foodNames),
+        today,
+        context: 'plate',
+      }),
+    [profile, total, foodNames, today],
   );
 
   const save = () => {
@@ -65,6 +90,11 @@ export function PlateReviewScreen({ route, navigation }: RootScreenProps<'PlateR
         <MacroLine n={total} />
         {analysis.notes ? <Text style={[type.small, { marginTop: spacing(2) }]}>{analysis.notes}</Text> : null}
       </Card>
+
+      <PersonalVerdictCard
+        verdict={verdict}
+        onSetUp={() => navigation.navigate('Tabs', { screen: 'Settings' })}
+      />
 
       <SectionTitle>Detected foods</SectionTitle>
       {items.map((it, idx) => {
