@@ -25,6 +25,10 @@ export type RootStackParamList = {
     barcode?: string;
     source: 'barcode' | 'photo';
   };
+  /** Foods the user saved with the heart button. */
+  Saved: undefined;
+  /** Two scanned products side by side. */
+  Compare: { a: ParsedLabel; b: ParsedLabel; aName?: string; bName?: string };
   IngredientDetail: { label: string; cardId?: string };
   // Camera for photographing just the ingredient list;
   IngredientsScan: { returnKey: string };
