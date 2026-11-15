@@ -35,10 +35,10 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>NutriLens uses the camera to scan nutrition labels and recognize the food on your plate.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Choose a photo of a nutrition label or a meal to get its nutrition info.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>NutriLens connects to your AI server on this network to recognize food on your plate.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choose a photo of a nutrition label or a meal to get its nutrition info.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>
