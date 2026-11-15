@@ -40,11 +40,6 @@ function Tabs() {
         component={ScanPlateScreen}
         options={{ title: 'Plate', tabBarIcon: icon('🍽️') }}
       />
-      <Tab.Screen
-        name="Ingredients"
-        component={IngredientsScanScreen}
-        options={{ title: 'Ingredients', tabBarIcon: icon('🔍') }}
-      />
       <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarIcon: icon('⚙️') }} />
     </Tab.Navigator>
   );
@@ -65,6 +60,11 @@ export function RootNavigator() {
         name="IngredientReport"
         component={IngredientReportScreen}
         options={{ title: "What's in it" }}
+      />
+      <Stack.Screen
+        name="IngredientsScan"
+        component={IngredientsScanScreen}
+        options={{ title: 'Scan ingredient list' }}
       />
       <Stack.Screen
         name="IngredientDetail"

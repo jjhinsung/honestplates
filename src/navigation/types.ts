@@ -6,13 +6,12 @@ export type TabParamList = {
   Today: undefined;
   ScanLabel: undefined;
   ScanPlate: undefined;
-  Ingredients: undefined;
   Settings: undefined;
 };
 
 export type RootStackParamList = {
   Tabs: NavigatorScreenParams<TabParamList>;
-  LabelReview: { parsed: ParsedLabel; photoPath?: string };
+  LabelReview: { parsed: ParsedLabel; photoPath?: string; scannedIngredients?: string };
   PlateReview: { analysis: PlateAnalysis; photoPath: string };
   ManualEntry: undefined;
   IngredientReport: {
@@ -23,6 +22,8 @@ export type RootStackParamList = {
     source: 'barcode' | 'photo';
   };
   IngredientDetail: { label: string; cardId?: string };
+  // Camera for photographing just the ingredient list;
+  IngredientsScan: { returnKey: string };
 };
 
 export type RootScreenProps<T extends keyof RootStackParamList> = NativeStackScreenProps<
