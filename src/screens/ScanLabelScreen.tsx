@@ -7,7 +7,8 @@ import { isUsableParse } from '../services/labelParser';
 import { scanNutritionLabel } from '../services/labelScanner';
 import React, { useCallback, useRef, useState } from 'react';
 import type { ScannedObjectType } from 'react-native-vision-camera';
-import { lookupBarcode } from '../services/barcodeLookup';
+import { findBarcodeInPhoto } from '../services/barcodeImage';
+import { lookupBarcode, type BarcodeLookupResult } from '../services/barcodeLookup';
 import { lookupIngredients } from '../services/ingredientLookup';
 import { tapHaptic } from '../services/haptics';
 
@@ -51,6 +52,34 @@ export function ScanLabelScreen() {
     [nav],
   );
 
+  /** Tell the user why a barcode didn't give nutrition info (not in the database, no data, or an error). */
+  const explainBarcodeMiss = useCallback(
+    (code: string, outcome: Exclude<BarcodeLookupResult, { status: 'found' }> | Error) => {
+      if (outcome instanceof Error || !('status' in outcome)) {
+        const msg = (outcome as Error)?.message ?? String(outcome);
+        Alert.alert('Barcode lookup failed', `${msg} You can take a photo of the label instead.`);
+      } else if (outcome.status === 'no-nutrition') {
+        // No nutrition facts in the database, but there may still be an ingredient list
+        // (this used to be the Ingredients tab's job).
+        Alert.alert(
+          'No nutrition data for this product',
+          `${outcome.productName ? `${outcome.productName}: ` : ''}barcode ${code} has no nutrition facts in ` +
+            'Open Food Facts yet. Take a photo of the Nutrition Facts panel to log it, or view its ingredients.',
+          [
+            { text: 'OK', style: 'cancel' },
+            { text: 'View ingredients', onPress: () => showIngredientsOnly(code) },
+          ],
+        );
+      } else {
+        Alert.alert(
+          'Product not found',
+          `Barcode ${code} isn't in Open Food Facts yet. Take a photo of the Nutrition Facts panel instead.`,
+        );
+      }
+    },
+    [showIngredientsOnly],
+  );
+
   // Path 1: barcode → Open Food Facts. Fires automatically when a barcode is in view.
   const handleBarcode = useCallback(
     async (code: string) => {
@@ -66,40 +95,53 @@ export function ScanLabelScreen() {
         const result = await lookupBarcode(code);
         if (result.status === 'found') {
           nav.navigate('LabelReview', { parsed: result.parsed });
-        } else if (result.status === 'no-nutrition') {
-          // No nutrition facts in the database, but there may still be an ingredient list
-          // (this used to be the Ingredients tab's job).
-          Alert.alert(
-            'No nutrition data for this product',
-            `${result.productName ? `${result.productName}: ` : ''}barcode ${code} has no nutrition facts in ` +
-              'Open Food Facts yet. Take a photo of the Nutrition Facts panel to log it, or view its ingredients.',
-            [
-              { text: 'OK', style: 'cancel' },
-              { text: 'View ingredients', onPress: () => showIngredientsOnly(code) },
-            ],
-          );
         } else {
-          Alert.alert(
-            'Product not found',
-            `Barcode ${code} isn't in Open Food Facts yet. Take a photo of the Nutrition Facts panel instead.`,
-          );
+          explainBarcodeMiss(code, result);
         }
       } catch (e: any) {
-        Alert.alert('Barcode lookup failed', `${e?.message ?? e} You can take a photo of the label instead.`);
+        explainBarcodeMiss(code, e);
       } finally {
         lookingUp.current = false;
         setBusy(false);
       }
     },
-    [busy, nav, showIngredientsOnly],
+    [busy, nav, explainBarcodeMiss],
   );
 
-  // Path 2 (unchanged): photo of the Nutrition Facts panel → on-device OCR.
-  const handleCapture = async (photoPath: string) => {
-    setBusyText('Reading label…');
+  // Path 2: photo of the Nutrition Facts panel → on-device OCR.
+  // Camera-roll photos are checked for a barcode first, since the live barcode
+  // detection only sees what's in front of the camera.
+  const handleCapture = async (photoPath: string, source: 'camera' | 'library') => {
     setBusy(true);
     try {
+      let barcodeMiss: { code: string; outcome: Exclude<BarcodeLookupResult, { status: 'found' }> | Error } | undefined;
+      if (source === 'library') {
+        setBusyText('Checking for a barcode…');
+        const code = await findBarcodeInPhoto(photoPath);
+        if (code) {
+          tapHaptic(); // a barcode was captured
+          setBusyText('Looking up barcode…');
+          try {
+            const result = await lookupBarcode(code);
+            if (result.status === 'found') {
+              nav.navigate('LabelReview', { parsed: result.parsed, photoPath });
+              return;
+            }
+            barcodeMiss = { code, outcome: result };
+          } catch (e: any) {
+            barcodeMiss = { code, outcome: e instanceof Error ? e : new Error(String(e)) };
+          }
+        }
+      }
+
+      // No barcode, or the barcode had no nutrition data: read the label in the photo.
+      setBusyText('Reading label…');
       const parsed = await scanNutritionLabel(photoPath);
+      if (!isUsableParse(parsed) && barcodeMiss) {
+        // Probably a photo of just the barcode, so the barcode result is the useful message.
+        explainBarcodeMiss(barcodeMiss.code, barcodeMiss.outcome);
+        return;
+      }
       if (!isUsableParse(parsed)) {
         Alert.alert(
           "Couldn't read the whole label",

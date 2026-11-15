@@ -1,6 +1,7 @@
 import { useIsFocused } from '@react-navigation/native';
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, AppState, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { launchImageLibrary } from 'react-native-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Camera,
@@ -19,7 +20,8 @@ import { Button } from './ui';
 const NO_CODES: ScannedObjectType[] = [];
 
 /**
- * Full-screen camera with a shutter button. Calls `onCapture(filePath)`.
+ * Full-screen camera with a shutter button and a "Photos" button for picking an
+ * existing picture from the camera roll. Both call `onCapture(filePath)`.
  * `overlay` draws a guide frame (label rectangle or plate circle).
  */
 export function CameraCapture({
@@ -31,7 +33,8 @@ export function CameraCapture({
   barcodeTypes,
   onBarcode,
 }: {
-  onCapture: (path: string) => void | Promise<void>;
+  /** `source` says whether the photo was just taken or picked from the camera roll. */
+  onCapture: (path: string, source: 'camera' | 'library') => void | Promise<void>;
   busy?: boolean;
   busyText?: string;
   hint: string;
@@ -62,6 +65,35 @@ export function CameraCapture({
   const insets = useSafeAreaInsets();
   const [capturing, setCapturing] = useState(false);
 
+  /** Pick an existing photo. Uses the system picker, so no photo-library permission is needed. */
+  const pickFromLibrary = async () => {
+    if (capturing || busy) return;
+    setCapturing(true);
+    try {
+      const result = await launchImageLibrary({
+        mediaType: 'photo',
+        selectionLimit: 1,
+        assetRepresentationMode: 'compatible', // HEIC → JPEG, which the scanner and AI expect
+        maxWidth: 3000, // big enough for small label text, small enough to process quickly
+        maxHeight: 3000,
+        quality: 0.9,
+      });
+      if (result.didCancel) return;
+      const uri = result.assets?.[0]?.uri;
+      if (result.errorCode || !uri) {
+        Alert.alert("Couldn't open that photo", result.errorMessage ?? 'Try a different picture.');
+        return;
+      }
+      await onCapture(uri, 'library');
+    } finally {
+      setCapturing(false);
+    }
+  };
+
+  const libraryFallback = (
+    <Button title="Choose from Photos" variant="secondary" onPress={pickFromLibrary} loading={busy || capturing} />
+  );
+
   if (!hasPermission) {
     return (
       <View style={styles.permission}>
@@ -74,6 +106,7 @@ export function CameraCapture({
         ) : (
           <Button title="Open Settings" onPress={() => Linking.openSettings()} />
         )}
+        {libraryFallback}
       </View>
     );
   }
@@ -81,7 +114,11 @@ export function CameraCapture({
   if (!device) {
     return (
       <View style={styles.permission}>
-        <Text style={type.body}>No camera available. (The iOS Simulator has no camera — run on a device.)</Text>
+        <Text style={[type.body, styles.permissionText]}>
+          No camera available (the iOS Simulator has no camera). You can still use a photo from your library.
+        </Text>
+        {libraryFallback}
+        {busy && !!busyText && <Text style={[type.small, { textAlign: 'center' }]}>{busyText}</Text>}
       </View>
     );
   }
@@ -92,7 +129,7 @@ export function CameraCapture({
     setCapturing(true);
     try {
       const file = await photoOutput.capturePhotoToFile({ flashMode: 'off' }, {});
-      await onCapture(file.filePath);
+      await onCapture(file.filePath, 'camera');
     } finally {
       setCapturing(false);
     }
@@ -121,9 +158,22 @@ export function CameraCapture({
             <Text style={styles.hintText}>{busyText ?? 'Processing…'}</Text>
           </View>
         ) : (
-          <Pressable accessibilityLabel="Take photo" onPress={shoot} style={styles.shutterOuter}>
-            <View style={styles.shutterInner} />
-          </Pressable>
+          <View style={styles.controls}>
+            <View style={styles.side}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Choose from photo library"
+                onPress={pickFromLibrary}
+                hitSlop={8}
+                style={({ pressed }) => [styles.libraryBtn, pressed && { opacity: 0.7 }]}>
+                <Text style={styles.libraryText}>Photos</Text>
+              </Pressable>
+            </View>
+            <Pressable accessibilityLabel="Take photo" onPress={shoot} style={styles.shutterOuter}>
+              <View style={styles.shutterInner} />
+            </Pressable>
+            <View style={styles.side} />
+          </View>
         )}
       </View>
     </View>
@@ -158,6 +208,17 @@ const styles = StyleSheet.create({
   },
   hintText: { color: '#fff', fontSize: 14, fontWeight: '500' },
   bottom: { position: 'absolute', bottom: 0, left: 0, right: 0, alignItems: 'center' },
+  controls: { flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch' },
+  side: { flex: 1, alignItems: 'center' },
+  libraryBtn: {
+    paddingHorizontal: spacing(4),
+    paddingVertical: spacing(2.5),
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.85)',
+  },
+  libraryText: { color: '#fff', fontSize: 14, fontWeight: '600' },
   shutterOuter: {
     width: 76,
     height: 76,
