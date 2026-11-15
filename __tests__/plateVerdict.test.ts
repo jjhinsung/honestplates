@@ -10,6 +10,7 @@ const plateVerdict = (p: Partial<HealthProfile>, names: string, today: Nutrients
     profile: { ...EMPTY_PROFILE, ...p },
     item,
     ingredients: names,
+    allergens: detectAllergens(names),
     today,
     context: 'plate',
   })!;
@@ -20,6 +21,7 @@ describe('personal verdict on a plate (food names only)', () => {
     expect(v.level).toBe('avoid');
     expect(v.reasons[0].message).toMatch(/shellfish allergy/);
   });
+
   it('never gives an all-clear for allergies from a photo', () => {
     const v = plateVerdict({ allergies: ['Milk'] }, 'Grilled chicken, French fries');
     expect(v.level).toBe('caution');
