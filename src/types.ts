@@ -105,3 +105,36 @@ export interface DaySummary {
   totals: Nutrients;
   entryCount: number;
 }
+
+// Personal Profile and Verdict
+
+export type FdaAllergen =
+  | 'Milk' | 'Eggs' | 'Fish' | 'Shellfish' | 'Tree nuts' | 'Peanuts' | 'Wheat' | 'Soy' | 'Sesame';
+
+export type DietRule = 'vegan' | 'vegetarian' | 'gluten-free';
+
+/** Daily limits the user chose to watch. A key is present only when that limit is switched on. */
+export interface WatchedLimits {
+  sodium?: number; // mg per day
+  addedSugar?: number; // g per day
+  saturatedFat?: number; // g per day
+}
+
+export interface HealthProfile {
+  allergies: FdaAllergen[];
+  diets: DietRule[];
+  limits: WatchedLimits;
+  /** Extra words to flag, e.g. "aspartame", "coconut". Matched case-insensitively in the ingredient list. */
+  avoidIngredients: string[];
+}
+
+export interface PersonalReason {
+  severity: 'avoid' | 'caution' | 'info';
+  message: string;
+}
+
+export interface PersonalVerdict {
+  level: 'avoid' | 'caution' | 'ok';
+  headline: string;
+  reasons: PersonalReason[];
+}

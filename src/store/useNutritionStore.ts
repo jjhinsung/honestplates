@@ -2,13 +2,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { DEFAULT_AI_PROXY_URL, DEFAULT_GOALS } from '../config';
-import type { DailyGoals, FoodEntry } from '../types';
+import type { DailyGoals, FoodEntry, HealthProfile } from '../types';
+import { EMPTY_PROFILE } from '../services/personalVerdict';
 import { newId } from '../utils/nutrition';
 
 interface NutritionState {
   entries: FoodEntry[];
   goals: DailyGoals;
   aiProxyUrl: string;
+  profile: HealthProfile;
 
   addEntry: (entry: Omit<FoodEntry, 'id' | 'createdAt'>) => FoodEntry;
   addEntries: (entries: Omit<FoodEntry, 'id' | 'createdAt'>[]) => void;
@@ -16,6 +18,7 @@ interface NutritionState {
   removeEntry: (id: string) => void;
   setGoals: (goals: Partial<DailyGoals>) => void;
   setAiProxyUrl: (url: string) => void;
+  setProfile: (patch: Partial<HealthProfile>) => void;
   clearAll: () => void;
 }
 
@@ -25,6 +28,7 @@ export const useNutritionStore = create<NutritionState>()(
       entries: [],
       goals: DEFAULT_GOALS,
       aiProxyUrl: DEFAULT_AI_PROXY_URL,
+      profile: EMPTY_PROFILE,
 
       addEntry: entry => {
         const full: FoodEntry = { ...entry, id: newId(), createdAt: Date.now() };
@@ -46,6 +50,7 @@ export const useNutritionStore = create<NutritionState>()(
         set(s => ({ entries: s.entries.filter(e => e.id !== id) })),
       setGoals: goals => set(s => ({ goals: { ...s.goals, ...goals } })),
       setAiProxyUrl: url => set({ aiProxyUrl: url.trim().replace(/\/+$/, '') }),
+      setProfile: patch => set(s => ({ profile: { ...s.profile, ...patch } })),
       clearAll: () => set({ entries: [] }),
     }),
     {
