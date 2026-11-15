@@ -1,6 +1,6 @@
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CalorieRing } from '../components/CalorieRing';
@@ -25,6 +25,9 @@ export function DashboardScreen() {
   const removeEntry = useNutritionStore(s => s.removeEntry);
 
   const [date, setDate] = useState(toDateKey());
+  // Remount the ring each time this tab is opened so it fills up again from 0.
+  const [ringKey, setRingKey] = useState(0);
+  useFocusEffect(useCallback(() => setRingKey(k => k + 1), []));
   const isToday = date === toDateKey();
   const shiftDay = (delta: number) => {
     const d = fromDateKey(date);
@@ -67,7 +70,7 @@ export function DashboardScreen() {
       {/* Daily totals */}
       <Card>
         <View style={styles.dailyRow}>
-          <CalorieRing consumed={day.totals.calories} goal={goals.calories} size={150} />
+          <CalorieRing key={ringKey} consumed={day.totals.calories} goal={goals.calories} size={150} />
           <View style={{ flex: 1 }}>
             <MacroBars totals={day.totals} goals={goals} />
           </View>

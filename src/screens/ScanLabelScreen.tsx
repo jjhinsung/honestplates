@@ -8,6 +8,7 @@ import { scanNutritionLabel } from '../services/labelScanner';
 import React, { useCallback, useRef, useState } from 'react';
 import type { ScannedObjectType } from 'react-native-vision-camera';
 import { lookupBarcode } from '../services/barcodeLookup';
+import { tapHaptic } from '../services/haptics';
 
 // Retail food barcodes. (US UPC-A codes arrive as EAN-13 with a leading 0 on iOS.)
 const FOOD_BARCODES: ScannedObjectType[] = ['ean-13', 'ean-8', 'upc-e', 'itf-14'];
@@ -30,6 +31,7 @@ export function ScanLabelScreen() {
       if (lastCode.current?.code === code && now - lastCode.current.at < SAME_CODE_COOLDOWN_MS) return;
       lastCode.current = { code, at: now };
       lookingUp.current = true;
+      tapHaptic(); // a barcode was captured
       setBusyText('Looking up barcode…');
       setBusy(true);
       try {
