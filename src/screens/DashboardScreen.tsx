@@ -10,6 +10,8 @@ import { Button, Card, SectionTitle } from '../components/ui';
 import { WeekChart } from '../components/WeekChart';
 import type { RootStackParamList } from '../navigation/types';
 import { useNutritionStore } from '../store/useNutritionStore';
+import { resolvePhotoPath } from '../services/imageUtils';
+import { labelFromEntry, plateItemFromEntry } from '../utils/entryDetails';
 import { colors, MACRO_COLORS, spacing, type } from '../theme';
 import type { FoodEntry, MealType } from '../types';
 import { fromDateKey, summarizeDay, summarizeWeek, toDateKey } from '../utils/nutrition';
@@ -49,6 +51,18 @@ export function DashboardScreen() {
     () => entries.filter(e => e.date === date).sort((a, b) => a.createdAt - b.createdAt),
     [entries, date],
   );
+
+  /** Reopen the page the food was logged from (label, plate or manual), showing what was saved. */
+  const openEntry = (e: FoodEntry) => {
+    const photoPath = resolvePhotoPath(e.photoPath);
+    if (e.source === 'plate') {
+      nav.navigate('PlateReview', { analysis: { items: [plateItemFromEntry(e)] }, photoPath, entryId: e.id });
+    } else if (e.source === 'manual') {
+      nav.navigate('ManualEntry', { entryId: e.id });
+    } else {
+      nav.navigate('LabelReview', { parsed: labelFromEntry(e), photoPath, entryId: e.id });
+    }
+  };
 
   const confirmDelete = (e: FoodEntry) =>
     Alert.alert('Remove entry?', e.name, [
@@ -104,7 +118,13 @@ export function DashboardScreen() {
               {title}
             </SectionTitle>
             {list.map(e => (
-              <Pressable key={e.id} onLongPress={() => confirmDelete(e)} style={styles.entry}>
+              <Pressable
+                key={e.id}
+                onPress={() => openEntry(e)}
+                onLongPress={() => confirmDelete(e)}
+                accessibilityRole="button"
+                accessibilityHint="Opens the food's details. Long-press to remove it."
+                style={({ pressed }) => [styles.entry, pressed && { opacity: 0.6 }]}>
                 <Text style={{ fontSize: 18 }}>{SOURCE_ICON[e.source]}</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={type.body} numberOfLines={1}>
@@ -114,6 +134,7 @@ export function DashboardScreen() {
                 </View>
                 {e.safety && <GradeBadge grade={e.safety.grade} size={22} />}
                 <Text style={[type.h3, type.num]}>{Math.round(e.nutrients.calories)}</Text>
+                <Text style={styles.chevron}>›</Text>
               </Pressable>
             ))}
           </Card>
@@ -131,7 +152,7 @@ export function DashboardScreen() {
 
       {dayEntries.length > 0 && (
         <Text style={[type.small, { textAlign: 'center', marginBottom: spacing(3) }]}>
-          Long-press an entry to remove it.
+          Tap an entry to see its details. Long-press to remove it.
         </Text>
       )}
       <View style={{ marginBottom: spacing(48) }}>
@@ -190,6 +211,7 @@ const styles = StyleSheet.create({
   dailyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing(4) },
   avgGrid: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing(4) },
   avgCell: { alignItems: 'center', flex: 1 },
+  chevron: { fontSize: 22, color: colors.textMuted, marginLeft: -spacing(1) },
   entry: {
     flexDirection: 'row',
     alignItems: 'center',

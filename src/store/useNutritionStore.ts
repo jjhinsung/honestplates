@@ -5,6 +5,7 @@ import { DEFAULT_AI_PROXY_URL, DEFAULT_GOALS } from '../config';
 import type { DailyGoals, FoodEntry, HealthProfile, HouseholdMember } from '../types';
 import { EMPTY_PROFILE } from '../services/personalVerdict';
 import { newId } from '../utils/nutrition';
+import { deleteKeptPhoto } from '../services/imageUtils';
 import type { RecallMatch } from '../services/recallCheck';
 
 export interface RecallAlert extends RecallMatch {
@@ -75,7 +76,10 @@ export const useNutritionStore = create<NutritionState>()(
           entries: s.entries.map(e => (e.id === id ? { ...e, ...patch } : e)),
         })),
       removeEntry: id =>
-        set(s => ({ entries: s.entries.filter(e => e.id !== id) })),
+        set(s => {
+          deleteKeptPhoto(s.entries.find(e => e.id === id)?.photoPath);
+          return { entries: s.entries.filter(e => e.id !== id) };
+        }),
       setGoals: goals => set(s => ({ goals: { ...s.goals, ...goals } })),
       setAiProxyUrl: url => set({ aiProxyUrl: url.trim().replace(/\/+$/, '') }),
       setGmoCheck: on => set({ gmoCheck: on }),

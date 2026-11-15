@@ -45,6 +45,10 @@ export interface FoodEntry {
   safety?: SafetyRating;
   confidence?: number; // 0–1 for AI plate estimates
   barcode?: string; // barcode to be checked against recalls
+  /** Scan or plate photo, kept so the entry can be reopened ("doc://scans/…", see imageUtils). */
+  photoPath?: string;
+  /** The label page as it was saved (per serving, with the user's edits), so tapping the entry reopens it. */
+  label?: ParsedLabel;
 }
 
 /** Result of parsing a printed Nutrition Facts panel (values are PER SERVING). */

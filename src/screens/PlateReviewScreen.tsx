@@ -1,11 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MacroLine } from '../components/MacroBars';
 import { MealPicker } from '../components/MealPicker';
 import { PersonalVerdictCard } from '../components/PersonalVerdictCard';
 import { Button, Card, NumberField, SectionTitle, Stepper } from '../components/ui';
 import type { RootScreenProps } from '../navigation/types';
-import { toFileUri } from '../services/imageUtils';
+import { keepPhoto, toFileUri } from '../services/imageUtils';
 import { detectAllergens } from '../services/ingredientParser';
 import { householdVerdicts, personalVerdict } from '../services/personalVerdict';
 import { HouseholdVerdicts } from '../components/HouseholdVerdicts';
@@ -21,12 +21,19 @@ interface EditableItem extends PlateItem {
 }
 
 export function PlateReviewScreen({ route, navigation }: RootScreenProps<'PlateReview'>) {
-  const { analysis, photoPath } = route.params;
+  const { analysis, photoPath, entryId } = route.params;
   const addEntries = useNutritionStore(s => s.addEntries);
+  const updateEntry = useNutritionStore(s => s.updateEntry);
+  // Reopened from the Today list: one logged item, edited in place.
+  const existing = useNutritionStore(s => (entryId ? s.entries.find(e => e.id === entryId) : undefined));
+  useEffect(() => {
+    if (entryId) navigation.setOptions({ title: 'Logged food' });
+  }, [entryId, navigation]);
+  const [saving, setSaving] = useState(false);
   const showMeals = useNutritionStore(s => s.showMeals);
-  const [meal, setMeal] = useState(guessMeal());
+  const [meal, setMeal] = useState(existing?.meal ?? guessMeal());
   const [items, setItems] = useState<EditableItem[]>(
-    analysis.items.map(i => ({ ...i, included: true, multiplier: 1, expanded: false })),
+    analysis.items.map(i => ({ ...i, included: true, multiplier: existing?.servings ?? 1, expanded: false })),
   );
 
   const update = (idx: number, patch: Partial<EditableItem>) =>
@@ -67,7 +74,23 @@ export function PlateReviewScreen({ route, navigation }: RootScreenProps<'PlateR
     [household, foodNames],
   );
 
-  const save = () => {
+  const save = async () => {
+    setSaving(true);
+    const kept = await keepPhoto(photoPath); // the camera's temp folder gets emptied by iOS
+    setSaving(false);
+    if (existing) {
+      const it = items[0];
+      updateEntry(existing.id, {
+        name: it.name,
+        meal,
+        servings: it.multiplier,
+        servingDescription: it.portion,
+        nutrients: scaleNutrients(it.nutrients, it.multiplier),
+        photoPath: kept,
+      });
+      navigation.goBack();
+      return;
+    }
     const date = toDateKey();
     addEntries(
       items
@@ -81,6 +104,7 @@ export function PlateReviewScreen({ route, navigation }: RootScreenProps<'PlateR
           servingDescription: i.portion,
           nutrients: scaleNutrients(i.nutrients, i.multiplier),
           confidence: i.confidence,
+          photoPath: kept,
         })),
     );
     navigation.popToTop();
@@ -89,7 +113,7 @@ export function PlateReviewScreen({ route, navigation }: RootScreenProps<'PlateR
 
   return (
     <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ padding: spacing(4) }}>
-      <Image source={{ uri: toFileUri(photoPath) }} style={styles.photo} />
+      {photoPath ? <Image source={{ uri: toFileUri(photoPath) }} style={styles.photo} /> : null}
 
       <Card>
         <Text style={type.small}>Plate total</Text>
@@ -168,8 +192,9 @@ export function PlateReviewScreen({ route, navigation }: RootScreenProps<'PlateR
         AI portion estimates can be off by 20–30%. Adjust portions for better accuracy.
       </Text>
       <Button
-        title={`Add ${Math.round(total.calories)} kcal to today`}
+        title={existing ? 'Save changes' : `Add ${Math.round(total.calories)} kcal to today`}
         onPress={save}
+        loading={saving}
         disabled={!items.some(i => i.included)}
       />
       <View style={{ height: spacing(10) }} />
