@@ -17,6 +17,8 @@ import { PersonalVerdictCard } from '../components/PersonalVerdictCard';
 import { householdVerdicts, personalVerdict } from '../services/personalVerdict';
 import { HouseholdVerdicts } from '../components/HouseholdVerdicts';
 import { RecallCard } from '../components/RecallCard';
+import { GmoCard } from '../components/GmoCard';
+import { checkGmo } from '../services/gmoCheck';
 import { findRecalls, getActiveRecalls, type Recall } from '../services/recallCheck';
 
 type NutrientValues = { [K in keyof Nutrients]?: number };
@@ -74,6 +76,8 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
     navigation.navigate('IngredientReport', {
       ingredientsText: ingredients,
       additiveTags: parsed.additiveTags,
+      labelText: parsed.rawText,
+      labelTags: parsed.labelTags,
       productName: name.trim() || parsed.productName,
       barcode: parsed.barcode,
       source: parsed.source === 'barcode' ? 'barcode' : 'photo',
@@ -111,6 +115,12 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
   const verdict = useMemo(
     () => personalVerdict({ profile, item: total, ingredients, allergens, today }),
     [profile, total, ingredients, allergens, today],
+  );
+  // GMO check (optional in Settings), recomputed as the ingredient list is edited.
+  const gmoCheckOn = useNutritionStore(s => s.gmoCheck);
+  const gmo = useMemo(
+    () => (gmoCheckOn ? checkGmo({ ingredients, labelText: parsed.rawText, labelTags: parsed.labelTags }) : undefined),
+    [gmoCheckOn, ingredients, parsed.rawText, parsed.labelTags],
   );
   const household = useNutritionStore(s => s.household);
   const householdRows = useMemo(
@@ -230,6 +240,7 @@ export function LabelReviewScreen({ route, navigation }: RootScreenProps<'LabelR
           />
           <HouseholdVerdicts rows={householdRows} />
         <SafetyCard rating={rating} />
+        {gmo && <GmoCard result={gmo} />}
         <Card>
           <SectionTitle
             right={

@@ -10,7 +10,7 @@ import { HouseholdCard } from '../components/HouseholdCard';
 
 export function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { goals, setGoals, aiProxyUrl, setAiProxyUrl, clearAll, entries, showMeals, setShowMeals } =
+  const { goals, setGoals, aiProxyUrl, setAiProxyUrl, clearAll, entries, showMeals, setShowMeals, gmoCheck, setGmoCheck } =
     useNutritionStore();
   const [url, setUrl] = useState(aiProxyUrl);
   const [testing, setTesting] = useState(false);
@@ -51,6 +51,24 @@ export function SettingsScreen() {
           
           <HealthProfileCard />
           <HouseholdCard />
+
+      <Card>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing(3) }}>
+          <View style={{ flex: 1 }}>
+            <Text style={type.h3}>Check for GMOs</Text>
+            <Text style={[type.small, { marginTop: spacing(1) }]}>
+              Show whether scanned foods are labeled bioengineered or non-GMO, or are made from crops that are usually
+              genetically engineered (corn, soy, canola, sugar beets).
+            </Text>
+          </View>
+          <Switch
+            value={gmoCheck}
+            onValueChange={setGmoCheck}
+            trackColor={{ true: colors.calories }}
+            accessibilityLabel="Check scanned foods for GMOs"
+          />
+        </View>
+      </Card>
           
       <Card>
         <SectionTitle>Meals</SectionTitle>

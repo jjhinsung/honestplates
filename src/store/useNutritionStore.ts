@@ -22,6 +22,9 @@ interface NutritionState {
   /** Show the breakfast/lunch/dinner/snack choice and grouping (off by default). */
   showMeals: boolean;
   setShowMeals: (on: boolean) => void;
+  /** Show the GMO check on scan reports. */
+  gmoCheck: boolean;
+  setGmoCheck: (on: boolean) => void;
 
   addEntry: (entry: Omit<FoodEntry, 'id' | 'createdAt'>) => FoodEntry;
   addEntries: (entries: Omit<FoodEntry, 'id' | 'createdAt'>[]) => void;
@@ -51,6 +54,7 @@ export const useNutritionStore = create<NutritionState>()(
       profile: EMPTY_PROFILE,
       showMeals: false,
       setShowMeals: on => set({ showMeals: on }),
+      gmoCheck: true,
       household: [],
       recallAlerts: [],
 
@@ -74,6 +78,7 @@ export const useNutritionStore = create<NutritionState>()(
         set(s => ({ entries: s.entries.filter(e => e.id !== id) })),
       setGoals: goals => set(s => ({ goals: { ...s.goals, ...goals } })),
       setAiProxyUrl: url => set({ aiProxyUrl: url.trim().replace(/\/+$/, '') }),
+      setGmoCheck: on => set({ gmoCheck: on }),
       setProfile: patch => set(s => ({ profile: { ...s.profile, ...patch } })),
       addMember: name =>
         set(s => ({

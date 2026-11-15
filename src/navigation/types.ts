@@ -17,6 +17,9 @@ export type RootStackParamList = {
   IngredientReport: {
     ingredientsText: string;
     additiveTags?: string[];
+    /** Package text and label tags, for the GMO check ("Bioengineered", "Non-GMO", organic). */
+    labelText?: string;
+    labelTags?: string[];
     productName?: string;
     barcode?: string;
     source: 'barcode' | 'photo';
